@@ -81,6 +81,7 @@ class MainActivity : ComponentActivity(), TextToSpeech.OnInitListener {
                 runOnUiThread {
                     status = message
                     isListening = message.contains("শুনছি")
+                    updateSpeechAvailability()
                 }
             },
             onText = { text ->
