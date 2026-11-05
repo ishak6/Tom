@@ -1,4 +1,4 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="tom_accessibility_description">Tom uses Accessibility only for voice-requested navigation actions such as Back, Home, Recent Apps, notifications, Quick Settings, power menu, and launching installed apps. It does not read screen content or capture passwords. Enable only if you want to use Tom phone controls.</string>
+    <string name="tom_accessibility_description">Tom uses Accessibility only for user-requested navigation, media-volume controls, opening Android settings, screenshots, and launching installed apps. It does not read screen content, capture passwords, or perform hidden actions. Enable only if you want to use Tom phone controls.</string>
 </resources>
