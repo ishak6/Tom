@@ -18,7 +18,7 @@ jobs:
   build:
     name: Build Tom APK
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 45
     env:
       ANDROID_HOME: /usr/local/lib/android/sdk
       ANDROID_SDK_ROOT: /usr/local/lib/android/sdk
@@ -33,8 +33,6 @@ jobs:
           distribution: temurin
           java-version: '17'
 
-      # Do not request the obsolete "tools" package: Google's current SDK
-      # repository no longer publishes it, and sdkmanager exits with code 1.
       - name: Set up Android SDK
         uses: android-actions/setup-android@v3
         with:
@@ -51,6 +49,16 @@ jobs:
           fi
           "$SDKMANAGER" --version
           "$SDKMANAGER" "platforms;android-35" "build-tools;35.0.0" "platform-tools"
+
+      - name: Download sherpa-onnx Android runtime
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p app/libs
+          curl --fail --location --retry 3 \
+            https://github.com/k2-fsa/sherpa-onnx/releases/download/v2.0.1/sherpa-onnx-2.0.1.aar \
+            --output app/libs/sherpa-onnx-2.0.1.aar
+          test "$(stat -c%s app/libs/sherpa-onnx-2.0.1.aar)" -gt 40000000
 
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4
