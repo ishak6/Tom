@@ -70,6 +70,9 @@ jobs:
           test -d "$ANDROID_HOME/platforms/android-35"
           test -d "$ANDROID_HOME/build-tools/35.0.0"
 
+      - name: Run unit tests and Android lint
+        run: gradle --no-daemon --stacktrace testDebugUnitTest lintDebug
+
       - name: Build debug APK
         run: gradle --no-daemon --stacktrace assembleDebug
 
