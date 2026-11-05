@@ -326,7 +326,7 @@ class MainActivity : ComponentActivity(), TextToSpeech.OnInitListener {
         SpeechRecognizer.ERROR_AUDIO -> "audio"
         SpeechRecognizer.ERROR_CLIENT -> "client"
         SpeechRecognizer.ERROR_INSUFFICIENT_PERMISSIONS -> "permission"
-        SpeechRecognizer.ERROR_LANGUAGE_UNAVAILABLE -> "language unavailable (install the English speech language pack or use system fallback)"
+        SpeechRecognizer.ERROR_LANGUAGE_UNAVAILABLE -> "language unavailable (install the English offline language pack)"
         SpeechRecognizer.ERROR_LANGUAGE_NOT_SUPPORTED -> "language not supported by this recognition service"
         SpeechRecognizer.ERROR_NETWORK, SpeechRecognizer.ERROR_NETWORK_TIMEOUT -> "network/service"
         SpeechRecognizer.ERROR_NO_MATCH -> "no speech match"
@@ -460,7 +460,7 @@ private fun TomHome(
                     Text("VOICE ENGINE", color = TomAccent, fontSize = 11.sp, fontWeight = FontWeight.Bold)
                     Spacer(Modifier.height(5.dp))
                     Text(offlineLabel, color = Color.LightGray, fontSize = 12.sp)
-                    Text("বাংলা model একবার download করলে speech recognition ফোনেই চলে; পরে internet লাগে না। English এখনও Android speech service ব্যবহার করে।", color = Color.Gray, fontSize = 11.sp)
+                    Text("বাংলা model install হলে recognition সম্পূর্ণ ফোনে চলে। English শুধু Android on-device recognizer ব্যবহার করে; offline language pack না থাকলে কাজ করবে না। Background listening, wake word এবং voice verification এখনো যোগ হয়নি।", color = Color.Gray, fontSize = 11.sp)
                 }
             }
             if (language.startsWith("bn")) {
