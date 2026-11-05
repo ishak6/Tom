@@ -12,8 +12,11 @@ android {
         applicationId = "com.tom.voicecontrol"
         minSdk = 26
         targetSdk = 35
-        versionCode = 1
-        versionName = "0.1.0"
+        versionCode = 2
+        versionName = "0.2.0"
+        ndk {
+            abiFilters += listOf("arm64-v8a", "armeabi-v7a")
+        }
     }
 
     buildFeatures {
@@ -29,6 +32,10 @@ android {
     }
 }
 
+repositories {
+    flatDir { dirs("libs") }
+}
+
 dependencies {
     implementation(platform("androidx.compose:compose-bom:2024.12.01"))
     implementation("androidx.activity:activity-compose:1.9.3")
@@ -38,5 +45,8 @@ dependencies {
     implementation("androidx.compose.ui:ui-tooling-preview")
     implementation("androidx.compose.material3:material3")
     implementation("androidx.compose.material:material-icons-extended")
+    implementation(name = "sherpa-onnx-2.0.1", ext = "aar")
+    implementation("org.apache.commons:commons-compress:1.27.1")
+    implementation("commons-io:commons-io:2.18.0")
     debugImplementation("androidx.compose.ui:ui-tooling")
 }
