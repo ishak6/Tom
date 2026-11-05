@@ -33,41 +33,34 @@ jobs:
           distribution: temurin
           java-version: '17'
 
-      - name: Set up Android SDK command-line tools
+      # Do not request the obsolete "tools" package: Google's current SDK
+      # repository no longer publishes it, and sdkmanager exits with code 1.
+      - name: Set up Android SDK
         uses: android-actions/setup-android@v3
+        with:
+          packages: platform-tools
+          accept-android-sdk-licenses: true
 
-      - name: Install SDK packages and accept licenses
+      - name: Install Android SDK packages
         shell: bash
         run: |
           set -euo pipefail
-
-          SDKMANAGER="$(command -v sdkmanager || true)"
-          if [ -z "$SDKMANAGER" ]; then
-            SDKMANAGER="$(find "$ANDROID_HOME/cmdline-tools" -type f -name sdkmanager -print -quit 2>/dev/null || true)"
+          SDKMANAGER="$ANDROID_HOME/cmdline-tools/16.0/bin/sdkmanager"
+          if [ ! -x "$SDKMANAGER" ]; then
+            SDKMANAGER="$(command -v sdkmanager)"
           fi
-
-          if [ -z "$SDKMANAGER" ]; then
-            echo "::error::sdkmanager was not found after android-actions/setup-android."
-            echo "ANDROID_HOME=$ANDROID_HOME"
-            find "$ANDROID_HOME" -maxdepth 4 -type f -name sdkmanager -print 2>/dev/null || true
-            exit 1
-          fi
-
-          echo "Using sdkmanager at: $SDKMANAGER"
           "$SDKMANAGER" --version
-
-          # Disable pipefail for this pipeline: 'yes' may receive SIGPIPE
-          # after sdkmanager has accepted all available licenses.
-          set +o pipefail
-          yes | "$SDKMANAGER" --licenses
-          set -o pipefail
-
           "$SDKMANAGER" "platforms;android-35" "build-tools;35.0.0" "platform-tools"
 
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '8.9'
+
+      - name: Verify Android SDK
+        run: |
+          test -d "$ANDROID_HOME/platforms/android-35"
+          test -d "$ANDROID_HOME/build-tools/35.0.0"
 
       - name: Build debug APK
         run: gradle --no-daemon --stacktrace assembleDebug
