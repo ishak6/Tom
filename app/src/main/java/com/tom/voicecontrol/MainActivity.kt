@@ -62,6 +62,7 @@ private val TomAccent = Color(0xFF78E0C3)
 
 class MainActivity : ComponentActivity(), TextToSpeech.OnInitListener {
     private var speechRecognizer: SpeechRecognizer? = null
+    private var offlineBengaliEngine: OfflineBengaliSpeechEngine? = null
     private var textToSpeech: TextToSpeech? = null
     private var ttsReady = false
     private var selectedLanguage by mutableStateOf("bn-BD")
@@ -74,6 +75,27 @@ class MainActivity : ComponentActivity(), TextToSpeech.OnInitListener {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         textToSpeech = TextToSpeech(this, this)
+        offlineBengaliEngine = OfflineBengaliSpeechEngine(
+            context = applicationContext,
+            onStatus = { message ->
+                runOnUiThread {
+                    status = message
+                    isListening = message.contains("শুনছি")
+                }
+            },
+            onText = { text ->
+                runOnUiThread {
+                    recognizedText = text
+                    handleLocalCommand(text)
+                }
+            },
+            onError = { message ->
+                runOnUiThread {
+                    isListening = false
+                    status = message
+                }
+            }
+        )
         updateSpeechAvailability()
 
         setContent {
@@ -102,6 +124,8 @@ class MainActivity : ComponentActivity(), TextToSpeech.OnInitListener {
                     isListening = isListening,
                     language = selectedLanguage,
                     offlineLabel = offlineModeLabel,
+                    modelInstalled = offlineBengaliEngine?.isModelInstalled() == true,
+                    onDownloadModel = { offlineBengaliEngine?.downloadModel() },
                     onListen = {
                         if (hasMicPermission) startVoiceInput()
                         else permissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
@@ -130,15 +154,26 @@ class MainActivity : ComponentActivity(), TextToSpeech.OnInitListener {
     private fun updateSpeechAvailability() {
         val onDeviceAvailable = Build.VERSION.SDK_INT >= Build.VERSION_CODES.S &&
             SpeechRecognizer.isOnDeviceRecognitionAvailable(this)
-        offlineModeLabel = when {
-            onDeviceAvailable -> "On-device speech recognition available"
-            Build.VERSION.SDK_INT < Build.VERSION_CODES.S ->
-                "Offline mode requested; Android speech service may use network"
-            else -> "On-device model unavailable; install a supported offline speech service"
-        }
+        val bengaliReady = offlineBengaliEngine?.isModelInstalled() == true
+        offlineModeLabel = if (bengaliReady) {
+            "বাংলা Offline Model installed • Bengali recognition runs locally"
+        } else {
+            "বাংলা Offline Model not installed • Download once (about 88 MB)"
+        } + if (onDeviceAvailable) " • Android on-device service available for fallback" else ""
     }
 
     private fun startVoiceInput() {
+        if (selectedLanguage.startsWith("bn")) {
+            val engine = offlineBengaliEngine
+            if (engine == null || !engine.isModelInstalled()) {
+                isListening = false
+                status = "বাংলা Offline Model আগে Download করুন"
+                return
+            }
+            isListening = true
+            engine.startListening()
+            return
+        }
         if (!SpeechRecognizer.isRecognitionAvailable(this)) {
             status = "এই ডিভাইসে speech recognition service নেই"
             return
@@ -250,6 +285,7 @@ class MainActivity : ComponentActivity(), TextToSpeech.OnInitListener {
     }
 
     private fun stopVoiceInput() {
+        offlineBengaliEngine?.stopListening()
         speechRecognizer?.cancel()
         isListening = false
         status = "শোনা বন্ধ • Listening stopped"
@@ -268,6 +304,8 @@ class MainActivity : ComponentActivity(), TextToSpeech.OnInitListener {
     }
 
     override fun onDestroy() {
+        offlineBengaliEngine?.release()
+        offlineBengaliEngine = null
         speechRecognizer?.destroy()
         speechRecognizer = null
         textToSpeech?.stop()
@@ -285,6 +323,8 @@ private fun TomHome(
     isListening: Boolean,
     language: String,
     offlineLabel: String,
+    modelInstalled: Boolean,
+    onDownloadModel: () -> Unit,
     onListen: () -> Unit,
     onStop: () -> Unit,
     onLanguage: (String) -> Unit,
@@ -363,7 +403,17 @@ private fun TomHome(
                     Text("VOICE ENGINE", color = TomAccent, fontSize = 11.sp, fontWeight = FontWeight.Bold)
                     Spacer(Modifier.height(5.dp))
                     Text(offlineLabel, color = Color.LightGray, fontSize = 12.sp)
-                    Text("Offline support depends on the Android speech service and installed language models. TTS voice data may need a one-time download.", color = Color.Gray, fontSize = 11.sp)
+                    Text("বাংলা model একবার download করলে speech recognition ফোনেই চলে; পরে internet লাগে না। English এখনও Android speech service ব্যবহার করে।", color = Color.Gray, fontSize = 11.sp)
+                }
+            }
+            if (language.startsWith("bn")) {
+                Spacer(Modifier.height(8.dp))
+                OutlinedButton(
+                    onClick = onDownloadModel,
+                    enabled = !modelInstalled,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text(if (modelInstalled) "বাংলা Offline Model Ready" else "Download Bengali Offline Model • ~88 MB")
                 }
             }
             Spacer(Modifier.weight(1f))
