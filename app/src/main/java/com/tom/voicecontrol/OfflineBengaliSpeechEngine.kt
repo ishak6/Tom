@@ -143,6 +143,7 @@ class OfflineBengaliSpeechEngine(
             return
         }
         onStatus("বাংলা Offline Engine চালু হচ্ছে…")
+        recording = true
         worker = thread(name = "Tom-BN-ASR") {
             try {
                 val dir = modelDirectory()
@@ -185,10 +186,13 @@ class OfflineBengaliSpeechEngine(
                     audio.release()
                     throw IllegalStateException("Microphone could not be initialized")
                 }
+                if (!recording) {
+                    audio.release()
+                    return@thread
+                }
                 recorder = audio
                 val stream = recognizer!!.createStream()
                 val samples = ShortArray(bufferBytes / 2)
-                recording = true
                 audio.startRecording()
                 onStatus("শুনছি • সম্পূর্ণ Offline বাংলা Recognition")
                 while (recording) {
@@ -202,12 +206,12 @@ class OfflineBengaliSpeechEngine(
                             if (result.isNotBlank()) onText(result)
                             recognizer!!.reset(stream)
                         }
-                    } else if (count < 0) {
+                    } else if (count < 0 && recording) {
                         throw IllegalStateException("Microphone read error: $count")
                     }
                 }
                 stream.release()
-                audio.stop()
+                try { audio.stop() } catch (_: Exception) {}
                 audio.release()
                 recorder = null
                 onStatus("শোনা বন্ধ • Offline Engine প্রস্তুত")
@@ -230,7 +234,5 @@ class OfflineBengaliSpeechEngine(
 
     fun release() {
         stopListening()
-        try { recognizer?.release() } catch (_: Exception) {}
-        recognizer = null
     }
 }
