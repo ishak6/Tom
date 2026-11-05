@@ -165,10 +165,10 @@ class MainActivity : ComponentActivity(), TextToSpeech.OnInitListener {
             "বাংলা Offline Model installed • Bengali recognition runs locally"
         } else {
             "বাংলা Offline Model not installed • Download once (about 88 MB)"
-        } + if (onDeviceAvailable) " • Android on-device service available for fallback" else ""
+        } + if (onDeviceAvailable) " • English offline recognition available when its language pack is installed" else " • English offline recognition unavailable on this Android build"
     }
 
-    private fun startVoiceInput(forceSystemRecognizer: Boolean = false) {
+    private fun startVoiceInput() {
         if (selectedLanguage.startsWith("bn")) {
             val engine = offlineBengaliEngine
             if (engine == null || !engine.isModelInstalled()) {
@@ -180,23 +180,21 @@ class MainActivity : ComponentActivity(), TextToSpeech.OnInitListener {
             engine.startListening()
             return
         }
-        if (!SpeechRecognizer.isRecognitionAvailable(this)) {
-            status = "এই ডিভাইসে speech recognition service নেই"
+
+        // Never fall back to createSpeechRecognizer(): providers may send audio to a
+        // network service. English mode is strictly on-device or unavailable.
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S ||
+            !SpeechRecognizer.isOnDeviceRecognitionAvailable(this)
+        ) {
+            isListening = false
+            status = "এই Android-এ English offline speech service নেই • অনলাইন fallback বন্ধ রাখা হয়েছে"
             return
         }
         if (isListening) stopVoiceInput()
 
         try {
             speechRecognizer?.destroy()
-            speechRecognizer = if (
-                !forceSystemRecognizer &&
-                Build.VERSION.SDK_INT >= Build.VERSION_CODES.S &&
-                SpeechRecognizer.isOnDeviceRecognitionAvailable(this)
-            ) {
-                SpeechRecognizer.createOnDeviceSpeechRecognizer(this)
-            } else {
-                SpeechRecognizer.createSpeechRecognizer(this)
-            }
+            speechRecognizer = SpeechRecognizer.createOnDeviceSpeechRecognizer(this)
 
             speechRecognizer?.setRecognitionListener(object : RecognitionListener {
                 override fun onReadyForSpeech(params: Bundle?) {
@@ -212,11 +210,10 @@ class MainActivity : ComponentActivity(), TextToSpeech.OnInitListener {
                 }
                 override fun onError(error: Int) {
                     isListening = false
-                    if (error == SpeechRecognizer.ERROR_LANGUAGE_UNAVAILABLE && !forceSystemRecognizer) {
-                        status = "On-device ভাষা পাওয়া যায়নি • System speech service দিয়ে আবার চেষ্টা করছি…"
-                        startVoiceInput(forceSystemRecognizer = true)
+                    status = if (error == SpeechRecognizer.ERROR_LANGUAGE_UNAVAILABLE) {
+                        "English offline language pack ইনস্টল নেই • Settings-এ offline speech language যোগ করুন"
                     } else {
-                        status = "Speech error: ${speechErrorText(error)}"
+                        "Offline speech error: ${speechErrorText(error)}"
                     }
                 }
                 override fun onResults(results: Bundle?) {
@@ -243,9 +240,7 @@ class MainActivity : ComponentActivity(), TextToSpeech.OnInitListener {
                 putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
                 putExtra(RecognizerIntent.EXTRA_LANGUAGE, selectedLanguage)
                 putExtra(RecognizerIntent.EXTRA_LANGUAGE_PREFERENCE, selectedLanguage)
-                // Prefer on-device recognizer when available. If its language pack is missing,
-                // the error handler retries with the system recognizer and allows network fallback.
-                putExtra(RecognizerIntent.EXTRA_PREFER_OFFLINE, !forceSystemRecognizer)
+                putExtra(RecognizerIntent.EXTRA_PREFER_OFFLINE, true)
                 putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, true)
                 putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 3)
             }
