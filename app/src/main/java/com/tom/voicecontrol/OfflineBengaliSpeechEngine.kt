@@ -128,7 +128,16 @@ class OfflineBengaliSpeechEngine(
                         if (entry.name.contains("/test_wavs/")) continue
                         entryFile.parentFile?.mkdirs()
                         FileOutputStream(entryFile).use { output ->
-                            tar.copyTo(output, 64 * 1024)
+                            val buffer = ByteArray(64 * 1024)
+                            var remaining = entry.size
+                            while (remaining > 0L) {
+                                val count = tar.read(buffer, 0, minOf(buffer.size.toLong(), remaining).toInt())
+                                if (count < 0) {
+                                    throw IllegalStateException("Unexpected end of model archive entry: ${entry.name}")
+                                }
+                                output.write(buffer, 0, count)
+                                remaining -= count
+                            }
                         }
                     }
                 }
