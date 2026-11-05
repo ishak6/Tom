@@ -1,5 +1,9 @@
 package com.tom.voicecontrol
 
+import android.Manifest
+import android.content.pm.PackageManager
+import androidx.core.content.ContextCompat
+
 import android.content.Context
 import android.media.AudioFormat
 import android.media.AudioRecord
@@ -196,6 +200,13 @@ class OfflineBengaliSpeechEngine(
                     enableEndpoint = true
                 )
                 recognizer = OnlineRecognizer(config = config)
+                if (ContextCompat.checkSelfPermission(
+                        context,
+                        Manifest.permission.RECORD_AUDIO
+                    ) != PackageManager.PERMISSION_GRANTED
+                ) {
+                    throw SecurityException("Microphone permission is required")
+                }
                 val minBuffer = AudioRecord.getMinBufferSize(
                     SAMPLE_RATE,
                     AudioFormat.CHANNEL_IN_MONO,
