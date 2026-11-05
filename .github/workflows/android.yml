@@ -10,29 +10,59 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: tom-android-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   build:
     name: Build Tom APK
     runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      ANDROID_HOME: /usr/local/lib/android/sdk
+      ANDROID_SDK_ROOT: /usr/local/lib/android/sdk
+
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
       - name: Set up JDK 17
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: '17'
 
-      # Install Android command-line tools and add sdkmanager to PATH.
-      - name: Set up Android SDK
+      - name: Set up Android SDK command-line tools
         uses: android-actions/setup-android@v3
 
-      - name: Accept Android SDK licenses
-        run: yes | sdkmanager --licenses
+      - name: Install SDK packages and accept licenses
+        shell: bash
+        run: |
+          set -euo pipefail
 
-      - name: Install Android SDK packages
-        run: sdkmanager "platforms;android-35" "build-tools;35.0.0" "platform-tools"
+          SDKMANAGER="$(command -v sdkmanager || true)"
+          if [ -z "$SDKMANAGER" ]; then
+            SDKMANAGER="$(find "$ANDROID_HOME/cmdline-tools" -type f -name sdkmanager -print -quit 2>/dev/null || true)"
+          fi
+
+          if [ -z "$SDKMANAGER" ]; then
+            echo "::error::sdkmanager was not found after android-actions/setup-android."
+            echo "ANDROID_HOME=$ANDROID_HOME"
+            find "$ANDROID_HOME" -maxdepth 4 -type f -name sdkmanager -print 2>/dev/null || true
+            exit 1
+          fi
+
+          echo "Using sdkmanager at: $SDKMANAGER"
+          "$SDKMANAGER" --version
+
+          # Disable pipefail for this pipeline: 'yes' may receive SIGPIPE
+          # after sdkmanager has accepted all available licenses.
+          set +o pipefail
+          yes | "$SDKMANAGER" --licenses
+          set -o pipefail
+
+          "$SDKMANAGER" "platforms;android-35" "build-tools;35.0.0" "platform-tools"
 
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4
@@ -40,7 +70,7 @@ jobs:
           gradle-version: '8.9'
 
       - name: Build debug APK
-        run: gradle --no-daemon assembleDebug
+        run: gradle --no-daemon --stacktrace assembleDebug
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
