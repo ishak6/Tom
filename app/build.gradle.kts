@@ -32,9 +32,6 @@ android {
     }
 }
 
-repositories {
-    flatDir { dirs("libs") }
-}
 
 dependencies {
     implementation(platform("androidx.compose:compose-bom:2024.12.01"))
