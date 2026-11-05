@@ -4,6 +4,7 @@ import android.accessibilityservice.AccessibilityService
 import android.content.ComponentName
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.media.AudioManager
 import android.os.Build
 import android.provider.Settings
 import android.view.accessibility.AccessibilityEvent
@@ -80,7 +81,13 @@ class TomAccessibilityService : AccessibilityService() {
                 "notifications", "open notifications", "নোটিফিকেশন", "নোটিফিকেশন দেখাও",
                 "quick settings", "কুইক সেটিংস",
                 "power menu", "পাওয়ার মেনু", "পাওয়ার মেনু",
-                "lock screen", "লক স্ক্রিন"
+                "lock screen", "লক স্ক্রিন",
+                "volume up", "increase volume", "ভলিউম বাড়াও", "শব্দ বাড়াও",
+                "volume down", "decrease volume", "ভলিউম কমাও", "শব্দ কমাও",
+                "mute", "mute volume", "শব্দ বন্ধ কর", "মিউট",
+                "unmute", "শব্দ চালু কর", "আনমিউট",
+                "wifi settings", "ওয়াইফাই সেটিংস", "ওয়াইফাই সেটিংস",
+                "bluetooth settings", "ব্লুটুথ সেটিংস"
             )
             return actionPhrases.any { value == it || value.contains(it) } ||
                 value.startsWith("open ") ||
@@ -118,6 +125,34 @@ class TomAccessibilityService : AccessibilityService() {
                     perform(AccessibilityService.GLOBAL_ACTION_QUICK_SETTINGS, "Quick Settings খুলছি।", "Opening Quick Settings.")
                 listOf("power menu", "পাওয়ার মেনু", "পাওয়ার মেনু").any(value::contains) ->
                     perform(AccessibilityService.GLOBAL_ACTION_POWER_DIALOG, "Power menu খুলছি।", "Opening the power menu.")
+                listOf("volume up", "increase volume", "ভলিউম বাড়াও", "শব্দ বাড়াও").any(value::contains) -> {
+                    val audio = service.getSystemService(AUDIO_SERVICE) as AudioManager
+                    audio.adjustStreamVolume(AudioManager.STREAM_MUSIC, AudioManager.ADJUST_RAISE, AudioManager.FLAG_SHOW_UI)
+                    done("ভলিউম বাড়াচ্ছি।", "Increasing media volume.")
+                }
+                listOf("volume down", "decrease volume", "ভলিউম কমাও", "শব্দ কমাও").any(value::contains) -> {
+                    val audio = service.getSystemService(AUDIO_SERVICE) as AudioManager
+                    audio.adjustStreamVolume(AudioManager.STREAM_MUSIC, AudioManager.ADJUST_LOWER, AudioManager.FLAG_SHOW_UI)
+                    done("ভলিউম কমাচ্ছি।", "Decreasing media volume.")
+                }
+                listOf("mute volume", "mute", "শব্দ বন্ধ কর", "মিউট").any(value::contains) -> {
+                    val audio = service.getSystemService(AUDIO_SERVICE) as AudioManager
+                    audio.adjustStreamVolume(AudioManager.STREAM_MUSIC, AudioManager.ADJUST_MUTE, AudioManager.FLAG_SHOW_UI)
+                    done("মিডিয়া শব্দ বন্ধ করছি।", "Muting media volume.")
+                }
+                listOf("unmute", "শব্দ চালু কর", "আনমিউট").any(value::contains) -> {
+                    val audio = service.getSystemService(AUDIO_SERVICE) as AudioManager
+                    audio.adjustStreamVolume(AudioManager.STREAM_MUSIC, AudioManager.ADJUST_UNMUTE, AudioManager.FLAG_SHOW_UI)
+                    done("মিডিয়া শব্দ চালু করছি।", "Unmuting media volume.")
+                }
+                listOf("wifi settings", "ওয়াইফাই সেটিংস", "ওয়াইফাই সেটিংস").any(value::contains) -> {
+                    service.startActivity(Intent(Settings.ACTION_WIFI_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+                    done("Wi-Fi সেটিংস খুলছি।", "Opening Wi-Fi settings.")
+                }
+                listOf("bluetooth settings", "ব্লুটুথ সেটিংস").any(value::contains) -> {
+                    service.startActivity(Intent(Settings.ACTION_BLUETOOTH_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+                    done("Bluetooth সেটিংস খুলছি।", "Opening Bluetooth settings.")
+                }
                 listOf("lock screen", "লক স্ক্রিন").any(value::contains) -> {
                     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
                         perform(AccessibilityService.GLOBAL_ACTION_LOCK_SCREEN, "স্ক্রিন লক করছি।", "Locking the screen.")
