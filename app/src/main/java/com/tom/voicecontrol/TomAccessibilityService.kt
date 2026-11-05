@@ -87,7 +87,23 @@ class TomAccessibilityService : AccessibilityService() {
                 "mute", "mute volume", "শব্দ বন্ধ কর", "মিউট",
                 "unmute", "শব্দ চালু কর", "আনমিউট",
                 "wifi settings", "ওয়াইফাই সেটিংস", "ওয়াইফাই সেটিংস",
-                "bluetooth settings", "ব্লুটুথ সেটিংস"
+                "bluetooth settings", "ব্লুটুথ সেটিংস",
+                "display settings", "screen settings", "ডিসপ্লে সেটিংস", "স্ক্রিন সেটিংস",
+                "sound settings", "audio settings", "সাউন্ড সেটিংস",
+                "battery settings", "ব্যাটারি সেটিংস",
+                "app settings", "apps settings", "অ্যাপ সেটিংস",
+                "location settings", "লোকেশন সেটিংস",
+                "security settings", "নিরাপত্তা সেটিংস",
+                "storage settings", "স্টোরেজ সেটিংস",
+                "date and time settings", "তারিখ সময় সেটিংস",
+                "language settings", "ভাষা সেটিংস",
+                "notification settings", "নোটিফিকেশন সেটিংস",
+                "hotspot settings", "হটস্পট সেটিংস",
+                "airplane mode settings", "এয়ারপ্লেন মোড সেটিংস",
+                "open camera", "ক্যামেরা খোলো", "open calculator", "ক্যালকুলেটর খোলো",
+                "open clock", "ঘড়ি খোলো", "open calendar", "ক্যালেন্ডার খোলো",
+                "open contacts", "কন্টাক্ট খোলো", "open phone", "ফোন খোলো",
+                "take screenshot", "screenshot", "স্ক্রিনশট নাও"
             )
             return actionPhrases.any { value == it || value.contains(it) } ||
                 value.startsWith("open ") ||
@@ -97,6 +113,34 @@ class TomAccessibilityService : AccessibilityService() {
                 value.endsWith(" খোলো") ||
                 value.endsWith(" খুলে দাও") ||
                 value.endsWith(" চালু কর")
+        }
+
+        private fun openSettings(
+            service: TomAccessibilityService,
+            action: String,
+            bn: String,
+            en: String,
+            isBangla: Boolean
+        ): String = try {
+            service.startActivity(Intent(action).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+            if (isBangla) bn else en
+        } catch (_: Exception) {
+            if (isBangla) "এই সেটিংসটি এই ফোনে পাওয়া যায়নি।" else "That settings page is unavailable on this phone."
+        }
+
+        private fun launchByLabel(
+            service: TomAccessibilityService,
+            labels: List<String>,
+            isBangla: Boolean
+        ): String {
+            val launched = labels.firstNotNullOfOrNull { label ->
+                if (service.launchInstalledApp(label)) label else null
+            }
+            return if (launched != null) {
+                if (isBangla) "$launched খুলছি।" else "Opening $launched."
+            } else {
+                if (isBangla) "এই অ্যাপটি ফোনে ইনস্টল নেই।" else "That app is not installed."
+            }
         }
 
         fun executeCommand(command: String, isBangla: Boolean): String? {
@@ -152,6 +196,47 @@ class TomAccessibilityService : AccessibilityService() {
                 listOf("bluetooth settings", "ব্লুটুথ সেটিংস").any(value::contains) -> {
                     service.startActivity(Intent(Settings.ACTION_BLUETOOTH_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
                     done("Bluetooth সেটিংস খুলছি।", "Opening Bluetooth settings.")
+                }
+                listOf("display settings", "screen settings", "ডিসপ্লে সেটিংস", "স্ক্রিন সেটিংস").any(value::contains) ->
+                    openSettings(service, Settings.ACTION_DISPLAY_SETTINGS, "ডিসপ্লে সেটিংস খুলছি।", "Opening Display settings.", isBangla)
+                listOf("sound settings", "audio settings", "সাউন্ড সেটিংস").any(value::contains) ->
+                    openSettings(service, Settings.ACTION_SOUND_SETTINGS, "সাউন্ড সেটিংস খুলছি।", "Opening Sound settings.", isBangla)
+                listOf("battery settings", "ব্যাটারি সেটিংস").any(value::contains) ->
+                    openSettings(service, Settings.ACTION_BATTERY_SAVER_SETTINGS, "ব্যাটারি সেটিংস খুলছি।", "Opening Battery settings.", isBangla)
+                listOf("app settings", "apps settings", "অ্যাপ সেটিংস").any(value::contains) ->
+                    openSettings(service, Settings.ACTION_MANAGE_APPLICATIONS_SETTINGS, "অ্যাপ সেটিংস খুলছি।", "Opening App settings.", isBangla)
+                listOf("location settings", "লোকেশন সেটিংস").any(value::contains) ->
+                    openSettings(service, Settings.ACTION_LOCATION_SOURCE_SETTINGS, "লোকেশন সেটিংস খুলছি।", "Opening Location settings.", isBangla)
+                listOf("security settings", "নিরাপত্তা সেটিংস").any(value::contains) ->
+                    openSettings(service, Settings.ACTION_SECURITY_SETTINGS, "নিরাপত্তা সেটিংস খুলছি।", "Opening Security settings.", isBangla)
+                listOf("storage settings", "স্টোরেজ সেটিংস").any(value::contains) ->
+                    openSettings(service, Settings.ACTION_INTERNAL_STORAGE_SETTINGS, "স্টোরেজ সেটিংস খুলছি।", "Opening Storage settings.", isBangla)
+                listOf("date and time settings", "তারিখ সময় সেটিংস").any(value::contains) ->
+                    openSettings(service, Settings.ACTION_DATE_SETTINGS, "তারিখ ও সময় সেটিংস খুলছি।", "Opening Date and time settings.", isBangla)
+                listOf("language settings", "ভাষা সেটিংস").any(value::contains) ->
+                    openSettings(service, Settings.ACTION_LOCALE_SETTINGS, "ভাষা সেটিংস খুলছি।", "Opening Language settings.", isBangla)
+                listOf("notification settings", "নোটিফিকেশন সেটিংস").any(value::contains) ->
+                    openSettings(service, Settings.ACTION_APP_NOTIFICATION_SETTINGS, "নোটিফিকেশন সেটিংস খুলছি।", "Opening Notification settings.", isBangla)
+                listOf("hotspot settings", "হটস্পট সেটিংস").any(value::contains) ->
+                    openSettings(service, Settings.ACTION_TETHER_SETTINGS, "Hotspot ও tethering সেটিংস খুলছি।", "Opening Hotspot and tethering settings.", isBangla)
+                listOf("airplane mode settings", "এয়ারপ্লেন মোড সেটিংস").any(value::contains) ->
+                    openSettings(service, Settings.ACTION_AIRPLANE_MODE_SETTINGS, "Airplane mode সেটিংস খুলছি।", "Opening Airplane mode settings.", isBangla)
+                listOf("open camera", "ক্যামেরা খোলো").any(value::contains) ->
+                    openSettings(service, android.provider.MediaStore.INTENT_ACTION_STILL_IMAGE_CAMERA, "ক্যামেরা খুলছি।", "Opening Camera.", isBangla)
+                listOf("open calculator", "ক্যালকুলেটর খোলো").any(value::contains) ->
+                    launchByLabel(service, listOf("calculator", "ক্যালকুলেটর"), isBangla)
+                listOf("open clock", "ঘড়ি খোলো").any(value::contains) ->
+                    launchByLabel(service, listOf("clock", "ঘড়ি"), isBangla)
+                listOf("open calendar", "ক্যালেন্ডার খোলো").any(value::contains) ->
+                    launchByLabel(service, listOf("calendar", "ক্যালেন্ডার"), isBangla)
+                listOf("open contacts", "কন্টাক্ট খোলো").any(value::contains) ->
+                    launchByLabel(service, listOf("contacts", "কন্টাক্ট"), isBangla)
+                listOf("open phone", "ফোন খোলো").any(value::contains) ->
+                    launchByLabel(service, listOf("phone", "dialer", "ফোন"), isBangla)
+                listOf("take screenshot", "screenshot", "স্ক্রিনশট নাও").any(value::contains) -> {
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                        perform(AccessibilityService.GLOBAL_ACTION_TAKE_SCREENSHOT, "স্ক্রিনশট নেওয়ার চেষ্টা করছি।", "Taking a screenshot.")
+                    } else done("এই Android সংস্করণে Screenshot action নেই।", "Screenshot action is unavailable.")
                 }
                 listOf("lock screen", "লক স্ক্রিন").any(value::contains) -> {
                     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
