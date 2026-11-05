@@ -34,6 +34,9 @@ class OfflineBengaliSpeechEngine(
 ) {
     companion object {
         private const val SAMPLE_RATE = 16_000
+        private const val MAX_ARCHIVE_BYTES = 200L * 1024L * 1024L
+        private const val MAX_EXTRACTED_BYTES = 500L * 1024L * 1024L
+        private const val MAX_ARCHIVE_FILES = 10_000
         private const val MODEL_DIR_NAME = "sherpa-onnx-streaming-zipformer-bn-vosk-2026-02-09"
         private const val MODEL_URL = "https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/sherpa-onnx-streaming-zipformer-bn-vosk-2026-02-09.tar.bz2"
     }
@@ -68,6 +71,9 @@ class OfflineBengaliSpeechEngine(
                     throw IllegalStateException("Download failed: HTTP ${connection.responseCode}")
                 }
                 val total = connection.contentLengthLong
+                if (total > MAX_ARCHIVE_BYTES) {
+                    throw SecurityException("Model archive exceeds the allowed download size")
+                }
                 connection.inputStream.use { input ->
                     FileOutputStream(archive).use { output ->
                         val buffer = ByteArray(64 * 1024)
@@ -77,6 +83,9 @@ class OfflineBengaliSpeechEngine(
                             if (count < 0) break
                             output.write(buffer, 0, count)
                             received += count
+                            if (received > MAX_ARCHIVE_BYTES) {
+                                throw SecurityException("Model archive exceeded the allowed download size")
+                            }
                             if (total > 0L) {
                                 val percent = (received * 100 / total).toInt()
                                 onStatus("বাংলা মডেল ডাউনলোড: $percent%")
@@ -114,12 +123,22 @@ class OfflineBengaliSpeechEngine(
         val destination = modelDirectory()
         destination.deleteRecursively()
         destination.mkdirs()
+        var extractedBytes = 0L
+        var extractedFiles = 0
         BufferedInputStream(FileInputStream(archive)).use { buffered ->
             BZip2CompressorInputStream(buffered).use { bzip ->
                 TarArchiveInputStream(bzip).use { tar ->
                     while (true) {
                         val entry = tar.nextTarEntry ?: break
                         if (!entry.isFile) continue
+                        extractedFiles += 1
+                        if (extractedFiles > MAX_ARCHIVE_FILES) {
+                            throw SecurityException("Model archive contains too many files")
+                        }
+                        if (entry.size < 0L || extractedBytes + entry.size > MAX_EXTRACTED_BYTES) {
+                            throw SecurityException("Model archive exceeds the allowed extracted size")
+                        }
+                        extractedBytes += entry.size
                         val entryFile = File(root, entry.name).canonicalFile
                         if (!entryFile.path.startsWith(root.path + File.separator)) {
                             throw SecurityException("Unsafe model archive entry")
