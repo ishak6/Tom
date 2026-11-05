@@ -27,6 +27,8 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -369,7 +371,7 @@ private fun TomHome(
 ) {
     Surface(modifier = Modifier.fillMaxSize(), color = TomBackground) {
         Column(
-            modifier = Modifier.fillMaxSize().padding(horizontal = 22.dp, vertical = 26.dp),
+            modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 22.dp, vertical = 26.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             Row(
@@ -476,7 +478,7 @@ private fun TomHome(
                     Text(if (modelInstalled) "বাংলা Offline Model Ready" else "Download Bengali Offline Model • ~88 MB")
                 }
             }
-            Spacer(Modifier.weight(1f))
+            Spacer(Modifier.height(12.dp))
             Text("Tom • Native Android • No WebView", color = Color.Gray, fontSize = 11.sp)
         }
     }
