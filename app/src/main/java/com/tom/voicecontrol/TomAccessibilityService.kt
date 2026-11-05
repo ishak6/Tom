@@ -218,7 +218,7 @@ class TomAccessibilityService : AccessibilityService() {
                 listOf("notification settings", "নোটিফিকেশন সেটিংস").any(value::contains) ->
                     openSettings(service, Settings.ACTION_APP_NOTIFICATION_SETTINGS, "নোটিফিকেশন সেটিংস খুলছি।", "Opening Notification settings.", isBangla)
                 listOf("hotspot settings", "হটস্পট সেটিংস").any(value::contains) ->
-                    openSettings(service, Settings.ACTION_TETHER_SETTINGS, "Hotspot ও tethering সেটিংস খুলছি।", "Opening Hotspot and tethering settings.", isBangla)
+                    openSettings(service, Settings.ACTION_WIRELESS_SETTINGS, "Hotspot ও tethering সেটিংস খুলছি।", "Opening Hotspot and tethering settings.", isBangla)
                 listOf("airplane mode settings", "এয়ারপ্লেন মোড সেটিংস").any(value::contains) ->
                     openSettings(service, Settings.ACTION_AIRPLANE_MODE_SETTINGS, "Airplane mode সেটিংস খুলছি।", "Opening Airplane mode settings.", isBangla)
                 listOf("open camera", "ক্যামেরা খোলো").any(value::contains) ->
