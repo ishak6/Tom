@@ -107,20 +107,20 @@ class TomAccessibilityService : AccessibilityService() {
 
             return when {
                 listOf("go back", "back", "পিছনে যাও", "পেছনে যাও", "ব্যাক").any(value::contains) ->
-                    perform(GLOBAL_ACTION_BACK, "এক ধাপ পিছনে যাচ্ছি।", "Going back.")
+                    perform(AccessibilityService.GLOBAL_ACTION_BACK, "এক ধাপ পিছনে যাচ্ছি।", "Going back.")
                 listOf("go home", "home screen", "home", "হোমে যাও", "হোম").any(value::contains) ->
-                    perform(GLOBAL_ACTION_HOME, "হোম স্ক্রিনে যাচ্ছি।", "Going to the Home screen.")
+                    perform(AccessibilityService.GLOBAL_ACTION_HOME, "হোম স্ক্রিনে যাচ্ছি।", "Going to the Home screen.")
                 listOf("recent apps", "show recent", "recents", "সাম্প্রতিক অ্যাপ", "রিসেন্ট অ্যাপ").any(value::contains) ->
-                    perform(GLOBAL_ACTION_RECENTS, "Recent Apps খুলছি।", "Opening Recent Apps.")
+                    perform(AccessibilityService.GLOBAL_ACTION_RECENTS, "Recent Apps খুলছি।", "Opening Recent Apps.")
                 listOf("notifications", "open notifications", "নোটিফিকেশন", "নোটিফিকেশন দেখাও").any(value::contains) ->
-                    perform(GLOBAL_ACTION_NOTIFICATIONS, "নোটিফিকেশন খুলছি।", "Opening notifications.")
+                    perform(AccessibilityService.GLOBAL_ACTION_NOTIFICATIONS, "নোটিফিকেশন খুলছি।", "Opening notifications.")
                 listOf("quick settings", "কুইক সেটিংস").any(value::contains) ->
-                    perform(GLOBAL_ACTION_QUICK_SETTINGS, "Quick Settings খুলছি।", "Opening Quick Settings.")
+                    perform(AccessibilityService.GLOBAL_ACTION_QUICK_SETTINGS, "Quick Settings খুলছি।", "Opening Quick Settings.")
                 listOf("power menu", "পাওয়ার মেনু", "পাওয়ার মেনু").any(value::contains) ->
-                    perform(GLOBAL_ACTION_POWER_DIALOG, "Power menu খুলছি।", "Opening the power menu.")
+                    perform(AccessibilityService.GLOBAL_ACTION_POWER_DIALOG, "Power menu খুলছি।", "Opening the power menu.")
                 listOf("lock screen", "লক স্ক্রিন").any(value::contains) -> {
                     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-                        perform(GLOBAL_ACTION_LOCK_SCREEN, "স্ক্রিন লক করছি।", "Locking the screen.")
+                        perform(AccessibilityService.GLOBAL_ACTION_LOCK_SCREEN, "স্ক্রিন লক করছি।", "Locking the screen.")
                     } else {
                         done("এই Android সংস্করণে Lock Screen action নেই।", "Lock Screen is unavailable on this Android version.")
                     }
