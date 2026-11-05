@@ -268,7 +268,7 @@ class MainActivity : ComponentActivity(), TextToSpeech.OnInitListener {
                     "To use phone control, open Settings → Accessibility → Tom Phone Control and enable it yourself."
                 }
             } else {
-                TomAccessibilityService.executeCommand(command) ?: if (isBangla) {
+                TomAccessibilityService.executeCommand(command, isBangla) ?: if (isBangla) {
                     "এই ফোন নিয়ন্ত্রণ কমান্ডটি সম্পন্ন করা যায়নি।"
                 } else {
                     "I could not complete that phone-control command."
