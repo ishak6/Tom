@@ -84,7 +84,7 @@ class TomAccessibilityService : AccessibilityService() {
                 "lock screen", "লক স্ক্রিন",
                 "volume up", "increase volume", "ভলিউম বাড়াও", "শব্দ বাড়াও",
                 "volume down", "decrease volume", "ভলিউম কমাও", "শব্দ কমাও",
-                "mute", "mute volume", "শব্দ বন্ধ কর", "মিউট",
+                "mute volume", "শব্দ বন্ধ কর", "মিউট",
                 "unmute", "শব্দ চালু কর", "আনমিউট",
                 "wifi settings", "ওয়াইফাই সেটিংস", "ওয়াইফাই সেটিংস",
                 "bluetooth settings", "ব্লুটুথ সেটিংস",
@@ -179,7 +179,7 @@ class TomAccessibilityService : AccessibilityService() {
                     audio.adjustStreamVolume(AudioManager.STREAM_MUSIC, AudioManager.ADJUST_LOWER, AudioManager.FLAG_SHOW_UI)
                     done("ভলিউম কমাচ্ছি।", "Decreasing media volume.")
                 }
-                listOf("mute volume", "mute", "শব্দ বন্ধ কর", "মিউট").any(value::contains) -> {
+                listOf("mute volume", "শব্দ বন্ধ কর", "মিউট").any(value::contains) -> {
                     val audio = service.getSystemService(AUDIO_SERVICE) as AudioManager
                     audio.adjustStreamVolume(AudioManager.STREAM_MUSIC, AudioManager.ADJUST_MUTE, AudioManager.FLAG_SHOW_UI)
                     done("মিডিয়া শব্দ বন্ধ করছি।", "Muting media volume.")
