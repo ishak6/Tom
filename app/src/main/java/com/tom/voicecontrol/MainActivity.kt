@@ -133,7 +133,10 @@ class MainActivity : ComponentActivity(), TextToSpeech.OnInitListener {
                     },
                     onStop = { stopVoiceInput() },
                     onLanguage = { selectedLanguage = it; updateSpeechAvailability() },
-                    onSettings = { startActivity(Intent(Settings.ACTION_SETTINGS)) }
+                    onSettings = { startActivity(Intent(Settings.ACTION_SETTINGS)) },
+                    onAccessibilitySettings = {
+                        startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))
+                    }
                 )
             }
         }
@@ -255,6 +258,28 @@ class MainActivity : ComponentActivity(), TextToSpeech.OnInitListener {
     private fun handleLocalCommand(raw: String) {
         val command = raw.lowercase(Locale.ROOT)
         val isBangla = selectedLanguage.startsWith("bn")
+
+        if (TomAccessibilityService.matchesCommand(command)) {
+            val phoneControlEnabled = TomAccessibilityService.isEnabled(this)
+            val phoneControlAnswer = if (!phoneControlEnabled) {
+                if (isBangla) {
+                    "ফোন নিয়ন্ত্রণ ব্যবহার করতে Settings → Accessibility → Tom Phone Control চালু করুন। এটি আপনার নিজের অনুমতি ছাড়া চালু হবে না।"
+                } else {
+                    "To use phone control, open Settings → Accessibility → Tom Phone Control and enable it yourself."
+                }
+            } else {
+                TomAccessibilityService.executeCommand(command) ?: if (isBangla) {
+                    "এই ফোন নিয়ন্ত্রণ কমান্ডটি সম্পন্ন করা যায়নি।"
+                } else {
+                    "I could not complete that phone-control command."
+                }
+            }
+            responseText = phoneControlAnswer
+            status = if (phoneControlEnabled) "Phone control • processed" else "Phone control • permission needed"
+            speak(phoneControlAnswer)
+            return
+        }
+
         val answer = when {
             listOf("hello", "হ্যালো", "হাই", "hi", "সালাম", "আসসালামু").any(command::contains) ->
                 if (isBangla) "হ্যালো! আমি টম। কীভাবে সাহায্য করতে পারি?" else "Hello! I'm Tom. How can I help?"
@@ -339,7 +364,8 @@ private fun TomHome(
     onListen: () -> Unit,
     onStop: () -> Unit,
     onLanguage: (String) -> Unit,
-    onSettings: () -> Unit
+    onSettings: () -> Unit,
+    onAccessibilitySettings: () -> Unit
 ) {
     Surface(modifier = Modifier.fillMaxSize(), color = TomBackground) {
         Column(
@@ -404,6 +430,29 @@ private fun TomHome(
             InfoCard("YOU SAID", recognizedText)
             Spacer(Modifier.height(10.dp))
             InfoCard("TOM REPLIED", responseText)
+            Spacer(Modifier.height(10.dp))
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(containerColor = TomSurface),
+                shape = RoundedCornerShape(18.dp)
+            ) {
+                Column(Modifier.padding(14.dp)) {
+                    Text("PHONE CONTROL", color = TomAccent, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                    Spacer(Modifier.height(5.dp))
+                    Text(
+                        "Offline actions: Back, Home, Recent Apps, Notifications, Quick Settings, Power Menu and launching installed apps. Enable Tom manually in Android Accessibility settings.",
+                        color = Color.LightGray,
+                        fontSize = 12.sp
+                    )
+                    Spacer(Modifier.height(8.dp))
+                    OutlinedButton(
+                        onClick = onAccessibilitySettings,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text("Enable Tom Phone Control")
+                    }
+                }
+            }
             Spacer(Modifier.height(10.dp))
             Card(
                 modifier = Modifier.fillMaxWidth(),
