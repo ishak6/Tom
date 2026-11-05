@@ -42,7 +42,7 @@ dependencies {
     implementation("androidx.compose.ui:ui-tooling-preview")
     implementation("androidx.compose.material3:material3")
     implementation("androidx.compose.material:material-icons-extended")
-    implementation(name = "sherpa-onnx-2.0.1", ext = "aar")
+    implementation(files("libs/sherpa-onnx-2.0.1.aar"))
     implementation("org.apache.commons:commons-compress:1.27.1")
     implementation("commons-io:commons-io:2.18.0")
     debugImplementation("androidx.compose.ui:ui-tooling")
