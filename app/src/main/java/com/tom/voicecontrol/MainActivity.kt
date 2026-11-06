@@ -288,7 +288,8 @@ class MainActivity : ComponentActivity(), TextToSpeech.OnInitListener {
     }
 
     private fun handleLocalCommand(raw: String) {
-        val command = raw.lowercase(Locale.ROOT)
+        val command = TomCommandHarness.normalize(raw)
+        val parsed = TomCommandHarness.parse(command)
         val isBangla = selectedLanguage.startsWith("bn")
 
         if (TomAccessibilityService.matchesCommand(command)) {
@@ -312,23 +313,23 @@ class MainActivity : ComponentActivity(), TextToSpeech.OnInitListener {
             return
         }
 
-        val answer = when {
-            listOf("hello", "হ্যালো", "হাই", "hi", "সালাম", "আসসালামু").any(command::contains) ->
+        val answer = when (parsed?.intent) {
+            TomCommandHarness.Intent.GREETING ->
                 if (isBangla) "হ্যালো! আমি টম। কীভাবে সাহায্য করতে পারি?" else "Hello! I'm Tom. How can I help?"
-            listOf("time", "সময়", "সময়", "কয়টা", "কটা বাজে").any(command::contains) -> {
+            TomCommandHarness.Intent.TIME -> {
                 val now = DateFormat.getTimeInstance(DateFormat.SHORT, if (isBangla) Locale("bn", "BD") else Locale.US).format(Date())
                 if (isBangla) "এখন সময় $now" else "The time is $now"
             }
-            listOf("settings", "সেটিংস", "সেটিং").any(command::contains) -> {
+            TomCommandHarness.Intent.GENERAL_SETTINGS -> {
                 startActivity(Intent(Settings.ACTION_SETTINGS))
                 if (isBangla) "ফোনের সেটিংস খুলছি।" else "Opening Android settings."
             }
-            listOf("stop", "বন্ধ কর", "থামো").any(command::contains) ->
+            TomCommandHarness.Intent.STOP ->
                 if (isBangla) "ঠিক আছে।" else "Okay."
             else -> if (isBangla) {
-                "এই কমান্ডটি এখনো যোগ করা হয়নি। আমি আপাতত সময়, হ্যালো এবং সেটিংস কমান্ড বুঝি।"
+                "এই কমান্ডটি এখনো যোগ করা হয়নি। সমর্থিত কমান্ডের তালিকা থেকে বলুন।"
             } else {
-                "That command is not supported yet. I currently understand hello, time, and settings."
+                "That command is not supported yet. Please use a command from the supported list."
             }
         }
         responseText = answer
