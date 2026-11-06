@@ -46,4 +46,5 @@ dependencies {
     implementation("org.apache.commons:commons-compress:1.27.1")
     implementation("commons-io:commons-io:2.18.0")
     debugImplementation("androidx.compose.ui:ui-tooling")
+    testImplementation("junit:junit:4.13.2")
 }
