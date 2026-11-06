@@ -113,7 +113,8 @@ class TomAccessibilityService : AccessibilityService() {
                 value.startsWith("অ্যাপ খুলে দাও ") ||
                 value.endsWith(" খোলো") ||
                 value.endsWith(" খুলে দাও") ||
-                value.endsWith(" চালু কর")
+                (value.endsWith(" চালু কর") &&
+                    (value.startsWith("অ্যাপ ") || value.contains(" অ্যাপ ")))
         }
 
         private fun openSettings(
