@@ -177,6 +177,7 @@ class OfflineBengaliSpeechEngine(
         onStatus("বাংলা Offline Engine চালু হচ্ছে…")
         recording = true
         worker = thread(name = "Tom-BN-ASR") {
+            var activeStream: com.k2fsa.sherpa.onnx.OnlineStream? = null
             try {
                 val dir = modelDirectory()
                 val config = OnlineRecognizerConfig(
@@ -224,6 +225,7 @@ class OfflineBengaliSpeechEngine(
                 }
                 recorder = audio
                 val stream = recognizer!!.createStream()
+                activeStream = stream
                 val samples = ShortArray(bufferBytes / 2)
                 audio.startRecording()
                 onStatus("শুনছি • সম্পূর্ণ Offline বাংলা Recognition")
@@ -242,7 +244,6 @@ class OfflineBengaliSpeechEngine(
                         throw IllegalStateException("Microphone read error: $count")
                     }
                 }
-                stream.release()
                 try { audio.stop() } catch (_: Exception) {}
                 audio.release()
                 recorder = null
@@ -253,6 +254,9 @@ class OfflineBengaliSpeechEngine(
                 recorder = null
                 onError("Offline Engine error: ${e.message ?: "Unknown error"}")
             } finally {
+                try { activeStream?.release() } catch (_: Exception) {}
+                try { recorder?.release() } catch (_: Exception) {}
+                recorder = null
                 try { recognizer?.release() } catch (_: Exception) {}
                 recognizer = null
             }
