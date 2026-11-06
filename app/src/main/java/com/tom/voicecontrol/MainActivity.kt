@@ -14,6 +14,7 @@ import android.speech.tts.TextToSpeech.LANG_MISSING_DATA
 import android.speech.tts.TextToSpeech.LANG_NOT_SUPPORTED
 import android.speech.tts.UtteranceProgressListener
 import android.provider.Settings
+import android.provider.AlarmClock
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
@@ -304,6 +305,65 @@ class MainActivity : ComponentActivity(), TextToSpeech.OnInitListener {
             status = if (phoneControlEnabled) "Phone control • processed" else "Phone control • permission needed"
             speak(phoneControlAnswer)
             return
+        }
+
+        // Delegate alarm and timer setup to Android Clock with visible confirmation UI.
+        val normalizedDigits = command
+            .replace('০', '0').replace('১', '1').replace('২', '2').replace('৩', '3')
+            .replace('৪', '4').replace('৫', '5').replace('৬', '6').replace('৭', '7')
+            .replace('৮', '8').replace('৯', '9')
+        val timerRequest = normalizedDigits.contains("timer") || normalizedDigits.contains("টাইমার")
+        val alarmRequest = normalizedDigits.contains("alarm") || normalizedDigits.contains("অ্যালার্ম") || normalizedDigits.contains("এলার্ম")
+        if (timerRequest) {
+            val duration = Regex("(\\d{1,3})\\s*(seconds?|secs?|সেকেন্ড|minutes?|mins?|মিনিট|ঘণ্টা|ঘন্টা|hours?)").find(normalizedDigits)
+            if (duration != null) {
+                val amount = duration.groupValues[1].toIntOrNull() ?: 0
+                val unit = duration.groupValues[2]
+                val seconds = when {
+                    unit.startsWith("সেকেন্ড") || unit.startsWith("second") || unit.startsWith("sec") -> amount
+                    unit.startsWith("ঘ") || unit.startsWith("hour") -> amount * 3600
+                    else -> amount * 60
+                }
+                if (seconds in 1..86400) {
+                    val intent = Intent(AlarmClock.ACTION_SET_TIMER).apply {
+                        putExtra(AlarmClock.EXTRA_LENGTH, seconds)
+                        putExtra(AlarmClock.EXTRA_MESSAGE, "Tom timer")
+                        putExtra(AlarmClock.EXTRA_SKIP_UI, false)
+                    }
+                    if (intent.resolveActivity(packageManager) != null) {
+                        startActivity(intent)
+                        val answer = if (isBangla) "$amount $unit-এর টাইমার সেট করার Clock খুলছি।" else "Opening Clock to set a $amount $unit timer."
+                        responseText = answer; status = "Timer request sent to Clock"; speak(answer)
+                    } else { status = if (isBangla) "Clock অ্যাপ পাওয়া যায়নি।" else "No Clock app is available." }
+                    return
+                }
+            }
+            val answer = if (isBangla) "সময় উল্লেখ করে বলুন, যেমন: ৫ মিনিটের টাইমার দাও।" else "Specify a duration, for example: set a timer for 5 minutes."
+            responseText = answer; status = "Timer duration needed"; speak(answer); return
+        }
+        if (alarmRequest) {
+            val match = Regex("(\\d{1,2})(?::(\\d{2}))?").find(normalizedDigits)
+            if (match != null) {
+                val rawHour = match.groupValues[1].toIntOrNull() ?: -1
+                val minute = match.groupValues[2].ifBlank { "0" }.toIntOrNull() ?: -1
+                val pm = normalizedDigits.contains("pm") || normalizedDigits.contains("বিকাল") || normalizedDigits.contains("সন্ধ্যা") || normalizedDigits.contains("রাত")
+                val am = normalizedDigits.contains("am") || normalizedDigits.contains("সকাল") || normalizedDigits.contains("ভোর")
+                val hour = if (pm && rawHour in 1..11) rawHour + 12 else if (am && rawHour == 12) 0 else rawHour
+                if (hour in 0..23 && minute in 0..59) {
+                    val intent = Intent(AlarmClock.ACTION_SET_ALARM).apply {
+                        putExtra(AlarmClock.EXTRA_HOUR, hour); putExtra(AlarmClock.EXTRA_MINUTES, minute)
+                        putExtra(AlarmClock.EXTRA_MESSAGE, "Tom alarm"); putExtra(AlarmClock.EXTRA_SKIP_UI, false)
+                    }
+                    if (intent.resolveActivity(packageManager) != null) {
+                        startActivity(intent)
+                        val answer = if (isBangla) "Clock-এ অ্যালার্ম সেট করার স্ক্রিন খুলছি।" else "Opening Clock to set your alarm."
+                        responseText = answer; status = "Alarm request sent to Clock"; speak(answer)
+                    } else { status = if (isBangla) "Clock অ্যাপ পাওয়া যায়নি।" else "No Clock app is available." }
+                    return
+                }
+            }
+            val answer = if (isBangla) "সময় উল্লেখ করে বলুন, যেমন: সকাল ৭:৩০-এ অ্যালার্ম দাও।" else "Specify a time, for example: set an alarm for 7:30 AM."
+            responseText = answer; status = "Alarm time needed"; speak(answer); return
         }
 
         val greetingCommands = setOf("hello", "hi", "hey", "হ্যালো", "হাই", "সালাম", "আসসালামু আলাইকুম")
