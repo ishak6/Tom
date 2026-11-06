@@ -32,6 +32,11 @@
                 android:resource="@xml/tom_accessibility_service" />
         </service>
 
+        <service
+            android:name=".TomBackgroundVoiceService"
+            android:exported="false"
+            android:foregroundServiceType="microphone" />
+
         <activity
             android:name=".MainActivity"
             android:exported="true">

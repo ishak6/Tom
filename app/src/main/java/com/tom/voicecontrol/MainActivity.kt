@@ -73,6 +73,7 @@ class MainActivity : ComponentActivity(), TextToSpeech.OnInitListener {
     private var responseText by mutableStateOf("মাইক্রোফোন চাপ দিয়ে কথা বলুন।")
     private var isListening by mutableStateOf(false)
     private var offlineModeLabel by mutableStateOf("Offline speech availability checking…")
+    private var resourceStatus by mutableStateOf("RAM ও Storage status checking…")
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -100,6 +101,7 @@ class MainActivity : ComponentActivity(), TextToSpeech.OnInitListener {
             }
         )
         updateSpeechAvailability()
+        updateResourceStatus()
 
         setContent {
             val hasMicPermission = ContextCompat.checkSelfPermission(
@@ -110,6 +112,25 @@ class MainActivity : ComponentActivity(), TextToSpeech.OnInitListener {
             ) { granted ->
                 if (granted) startVoiceInput()
                 else status = "মাইক্রোফোন অনুমতি দেওয়া হয়নি • Permission denied"
+            }
+            val backgroundNotificationPermissionLauncher = rememberLauncherForActivityResult(
+                ActivityResultContracts.RequestPermission()
+            ) { granted ->
+                if (granted) startBackgroundVoiceService()
+                else status = "দৃশ্যমান listening notification ছাড়া background microphone চালু করা হয়নি"
+            }
+            val backgroundPermissionLauncher = rememberLauncherForActivityResult(
+                ActivityResultContracts.RequestPermission()
+            ) { granted ->
+                if (!granted) {
+                    status = "Background listening-এর জন্য microphone permission প্রয়োজন"
+                } else if (Build.VERSION.SDK_INT >= 33 &&
+                    ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
+                ) {
+                    backgroundNotificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+                } else {
+                    startBackgroundVoiceService()
+                }
             }
 
             MaterialTheme(colorScheme = darkColorScheme(
@@ -127,6 +148,7 @@ class MainActivity : ComponentActivity(), TextToSpeech.OnInitListener {
                     isListening = isListening,
                     language = selectedLanguage,
                     offlineLabel = offlineModeLabel,
+                    resourceStatus = resourceStatus,
                     modelInstalled = offlineBengaliEngine?.isModelInstalled() == true,
                     onDownloadModel = { offlineBengaliEngine?.downloadModel() },
                     onListen = {
@@ -134,6 +156,22 @@ class MainActivity : ComponentActivity(), TextToSpeech.OnInitListener {
                         else permissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
                     },
                     onStop = { stopVoiceInput() },
+                    onBackgroundStart = {
+                        if (selectedLanguage != "bn-BD") {
+                            status = "Background local listening এখন বাংলা মডেলেই সীমাবদ্ধ"
+                        } else if (offlineBengaliEngine?.isModelInstalled() != true) {
+                            status = "আগে বাংলা Offline Model Download করুন"
+                        } else if (ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
+                            backgroundPermissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
+                        } else if (Build.VERSION.SDK_INT >= 33 &&
+                            ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
+                        ) {
+                            backgroundNotificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+                        } else {
+                            startBackgroundVoiceService()
+                        }
+                    },
+                    onBackgroundStop = { stopBackgroundVoiceService() },
                     onLanguage = { selectedLanguage = it; updateSpeechAvailability() },
                     onSettings = { startActivity(Intent(Settings.ACTION_SETTINGS)) },
                     onAccessibilitySettings = {
@@ -141,6 +179,20 @@ class MainActivity : ComponentActivity(), TextToSpeech.OnInitListener {
                     }
                 )
             }
+        }
+    }
+
+    override fun onResume() {
+        super.onResume()
+        updateResourceStatus()
+    }
+
+    private fun updateResourceStatus() {
+        try {
+            val snapshot = TomResourceManager.snapshot(this)
+            resourceStatus = "RAM: ${TomResourceManager.formatBytes(snapshot.availableRamBytes)} free / ${TomResourceManager.formatBytes(snapshot.totalRamBytes)} total • Storage: ${TomResourceManager.formatBytes(snapshot.appStorageAvailableBytes)} free • ${if (snapshot.lowMemoryMode) "Low-RAM mode" else "Adaptive mode"}"
+        } catch (error: Exception) {
+            resourceStatus = "Resource status unavailable: ${error.localizedMessage ?: "unknown"}"
         }
     }
 
@@ -165,10 +217,10 @@ class MainActivity : ComponentActivity(), TextToSpeech.OnInitListener {
             "বাংলা Offline Model installed • Bengali recognition runs locally"
         } else {
             "বাংলা Offline Model not installed • Download once (about 88 MB)"
-        } + if (onDeviceAvailable) " • Android on-device service available for fallback" else ""
+        } + if (onDeviceAvailable) " • English offline recognition available when its language pack is installed" else " • English offline recognition unavailable on this Android build"
     }
 
-    private fun startVoiceInput(forceSystemRecognizer: Boolean = false) {
+    private fun startVoiceInput() {
         if (selectedLanguage.startsWith("bn")) {
             val engine = offlineBengaliEngine
             if (engine == null || !engine.isModelInstalled()) {
@@ -180,23 +232,21 @@ class MainActivity : ComponentActivity(), TextToSpeech.OnInitListener {
             engine.startListening()
             return
         }
-        if (!SpeechRecognizer.isRecognitionAvailable(this)) {
-            status = "এই ডিভাইসে speech recognition service নেই"
+
+        // Never fall back to createSpeechRecognizer(): providers may send audio to a
+        // network service. English mode is strictly on-device or unavailable.
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S ||
+            !SpeechRecognizer.isOnDeviceRecognitionAvailable(this)
+        ) {
+            isListening = false
+            status = "এই Android-এ English offline speech service নেই • অনলাইন fallback বন্ধ রাখা হয়েছে"
             return
         }
         if (isListening) stopVoiceInput()
 
         try {
             speechRecognizer?.destroy()
-            speechRecognizer = if (
-                !forceSystemRecognizer &&
-                Build.VERSION.SDK_INT >= Build.VERSION_CODES.S &&
-                SpeechRecognizer.isOnDeviceRecognitionAvailable(this)
-            ) {
-                SpeechRecognizer.createOnDeviceSpeechRecognizer(this)
-            } else {
-                SpeechRecognizer.createSpeechRecognizer(this)
-            }
+            speechRecognizer = SpeechRecognizer.createOnDeviceSpeechRecognizer(this)
 
             speechRecognizer?.setRecognitionListener(object : RecognitionListener {
                 override fun onReadyForSpeech(params: Bundle?) {
@@ -212,11 +262,10 @@ class MainActivity : ComponentActivity(), TextToSpeech.OnInitListener {
                 }
                 override fun onError(error: Int) {
                     isListening = false
-                    if (error == SpeechRecognizer.ERROR_LANGUAGE_UNAVAILABLE && !forceSystemRecognizer) {
-                        status = "On-device ভাষা পাওয়া যায়নি • System speech service দিয়ে আবার চেষ্টা করছি…"
-                        startVoiceInput(forceSystemRecognizer = true)
+                    status = if (error == SpeechRecognizer.ERROR_LANGUAGE_UNAVAILABLE) {
+                        "English offline language pack ইনস্টল নেই • Settings-এ offline speech language যোগ করুন"
                     } else {
-                        status = "Speech error: ${speechErrorText(error)}"
+                        "Offline speech error: ${speechErrorText(error)}"
                     }
                 }
                 override fun onResults(results: Bundle?) {
@@ -243,9 +292,7 @@ class MainActivity : ComponentActivity(), TextToSpeech.OnInitListener {
                 putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
                 putExtra(RecognizerIntent.EXTRA_LANGUAGE, selectedLanguage)
                 putExtra(RecognizerIntent.EXTRA_LANGUAGE_PREFERENCE, selectedLanguage)
-                // Prefer on-device recognizer when available. If its language pack is missing,
-                // the error handler retries with the system recognizer and allows network fallback.
-                putExtra(RecognizerIntent.EXTRA_PREFER_OFFLINE, !forceSystemRecognizer)
+                putExtra(RecognizerIntent.EXTRA_PREFER_OFFLINE, true)
                 putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, true)
                 putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 3)
             }
@@ -258,8 +305,18 @@ class MainActivity : ComponentActivity(), TextToSpeech.OnInitListener {
     }
 
     private fun handleLocalCommand(raw: String) {
-        val command = raw.lowercase(Locale.ROOT)
+        val command = TomCommandHarness.normalize(raw)
+        val parsed = TomCommandHarness.parse(command)
         val isBangla = selectedLanguage.startsWith("bn")
+
+        if (parsed?.intent == TomCommandHarness.Intent.STOP) {
+            stopVoiceInput()
+            stopBackgroundVoiceService()
+            responseText = if (isBangla) "শোনা বন্ধ করেছি।" else "Listening stopped."
+            status = "Listening stopped"
+            speak(responseText)
+            return
+        }
 
         if (TomAccessibilityService.matchesCommand(command)) {
             val phoneControlEnabled = TomAccessibilityService.isEnabled(this)
@@ -282,27 +339,31 @@ class MainActivity : ComponentActivity(), TextToSpeech.OnInitListener {
             return
         }
 
-        val answer = when {
-            listOf("hello", "হ্যালো", "হাই", "hi", "সালাম", "আসসালামু").any(command::contains) ->
+        val answer = when (parsed?.intent) {
+            TomCommandHarness.Intent.GREETING ->
                 if (isBangla) "হ্যালো! আমি টম। কীভাবে সাহায্য করতে পারি?" else "Hello! I'm Tom. How can I help?"
-            listOf("time", "সময়", "সময়", "কয়টা", "কটা বাজে").any(command::contains) -> {
+            TomCommandHarness.Intent.TIME -> {
                 val now = DateFormat.getTimeInstance(DateFormat.SHORT, if (isBangla) Locale("bn", "BD") else Locale.US).format(Date())
                 if (isBangla) "এখন সময় $now" else "The time is $now"
             }
-            listOf("settings", "সেটিংস", "সেটিং").any(command::contains) -> {
+            TomCommandHarness.Intent.GENERAL_SETTINGS -> {
                 startActivity(Intent(Settings.ACTION_SETTINGS))
                 if (isBangla) "ফোনের সেটিংস খুলছি।" else "Opening Android settings."
             }
-            listOf("stop", "বন্ধ কর", "থামো").any(command::contains) ->
+            TomCommandHarness.Intent.STOP ->
                 if (isBangla) "ঠিক আছে।" else "Okay."
             else -> if (isBangla) {
-                "এই কমান্ডটি এখনো যোগ করা হয়নি। আমি আপাতত সময়, হ্যালো এবং সেটিংস কমান্ড বুঝি।"
+                "এই কমান্ডটি এখনো যোগ করা হয়নি। সমর্থিত কমান্ডের তালিকা থেকে বলুন।"
             } else {
-                "That command is not supported yet. I currently understand hello, time, and settings."
+                "That command is not supported yet. Please use a command from the supported list."
             }
         }
         responseText = answer
-        status = "কমান্ড সম্পন্ন • Local command processed"
+        status = if (parsed == null) {
+            "কমান্ড শনাক্ত হয়নি • Unknown command ignored"
+        } else {
+            "কমান্ড যাচাই হয়েছে • Local command handled"
+        }
         speak(answer)
     }
 
@@ -320,6 +381,24 @@ class MainActivity : ComponentActivity(), TextToSpeech.OnInitListener {
         textToSpeech?.speak(text, TextToSpeech.QUEUE_FLUSH, null, "tom-response")
     }
 
+    private fun startBackgroundVoiceService() {
+        stopVoiceInput()
+        try {
+            val intent = Intent(this, TomBackgroundVoiceService::class.java).apply {
+                action = TomBackgroundVoiceService.ACTION_START
+            }
+            ContextCompat.startForegroundService(this, intent)
+            status = "Background local listening requested • Notification থেকে Stop করতে পারবেন"
+        } catch (error: Exception) {
+            status = "Background service শুরু হয়নি: ${error.localizedMessage ?: "Unknown error"}"
+        }
+    }
+
+    private fun stopBackgroundVoiceService() {
+        stopService(Intent(this, TomBackgroundVoiceService::class.java))
+        status = "Background listening বন্ধ করার অনুরোধ পাঠানো হয়েছে"
+    }
+
     private fun stopVoiceInput() {
         offlineBengaliEngine?.stopListening()
         speechRecognizer?.cancel()
@@ -331,7 +410,7 @@ class MainActivity : ComponentActivity(), TextToSpeech.OnInitListener {
         SpeechRecognizer.ERROR_AUDIO -> "audio"
         SpeechRecognizer.ERROR_CLIENT -> "client"
         SpeechRecognizer.ERROR_INSUFFICIENT_PERMISSIONS -> "permission"
-        SpeechRecognizer.ERROR_LANGUAGE_UNAVAILABLE -> "language unavailable (install the English speech language pack or use system fallback)"
+        SpeechRecognizer.ERROR_LANGUAGE_UNAVAILABLE -> "language unavailable (install the English offline language pack)"
         SpeechRecognizer.ERROR_LANGUAGE_NOT_SUPPORTED -> "language not supported by this recognition service"
         SpeechRecognizer.ERROR_NETWORK, SpeechRecognizer.ERROR_NETWORK_TIMEOUT -> "network/service"
         SpeechRecognizer.ERROR_NO_MATCH -> "no speech match"
@@ -356,6 +435,7 @@ class MainActivity : ComponentActivity(), TextToSpeech.OnInitListener {
 @androidx.compose.runtime.Composable
 private fun TomHome(
     status: String,
+    resourceStatus: String,
     recognizedText: String,
     responseText: String,
     isListening: Boolean,
@@ -365,6 +445,8 @@ private fun TomHome(
     onDownloadModel: () -> Unit,
     onListen: () -> Unit,
     onStop: () -> Unit,
+    onBackgroundStart: () -> Unit,
+    onBackgroundStop: () -> Unit,
     onLanguage: (String) -> Unit,
     onSettings: () -> Unit,
     onAccessibilitySettings: () -> Unit
@@ -428,7 +510,28 @@ private fun TomHome(
                     fontWeight = FontWeight.SemiBold
                 )
             }
+            Spacer(Modifier.height(10.dp))
+            OutlinedButton(
+                onClick = onBackgroundStart,
+                modifier = Modifier.fillMaxWidth(),
+                enabled = language == "bn-BD" && modelInstalled
+            ) {
+                Text("Start background listening • Tom prefix required")
+            }
+            OutlinedButton(
+                onClick = onBackgroundStop,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text("Stop background listening")
+            }
+            Text(
+                "এটি দৃশ্যমান notification সহ চালু হবে। ব্যাকগ্রাউন্ডে শুধু বাংলা local ASR চলে; কমান্ডের আগে “Tom …” বলতে হবে এবং Phone Control আলাদা করে Enable থাকতে হবে।",
+                color = Color.Gray,
+                fontSize = 11.sp
+            )
             Spacer(Modifier.height(18.dp))
+            InfoCard("AUTOMATIC RESOURCE MANAGER", resourceStatus)
+            Spacer(Modifier.height(10.dp))
             InfoCard("YOU SAID", recognizedText)
             Spacer(Modifier.height(10.dp))
             InfoCard("TOM REPLIED", responseText)
@@ -465,7 +568,7 @@ private fun TomHome(
                     Text("VOICE ENGINE", color = TomAccent, fontSize = 11.sp, fontWeight = FontWeight.Bold)
                     Spacer(Modifier.height(5.dp))
                     Text(offlineLabel, color = Color.LightGray, fontSize = 12.sp)
-                    Text("বাংলা model একবার download করলে speech recognition ফোনেই চলে; পরে internet লাগে না। English এখনও Android speech service ব্যবহার করে।", color = Color.Gray, fontSize = 11.sp)
+                    Text("বাংলা model install হলে recognition সম্পূর্ণ ফোনে চলে। English শুধু Android on-device recognizer ব্যবহার করে; offline language pack না থাকলে কাজ করবে না। Background listening, wake word এবং voice verification এখনো যোগ হয়নি।", color = Color.Gray, fontSize = 11.sp)
                 }
             }
             if (language.startsWith("bn")) {
