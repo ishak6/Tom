@@ -86,9 +86,10 @@ class TomAccessibilityService : AccessibilityService() {
                 "volume down", "decrease volume", "ভলিউম কমাও", "শব্দ কমাও",
                 "mute volume", "শব্দ বন্ধ কর", "মিউট",
                 "unmute", "শব্দ চালু কর", "আনমিউট",
+                "play", "pause", "play pause", "next track", "previous track", "পরের গান", "আগের গান", "গান চালাও", "গান থামাও",
                 "wifi settings", "ওয়াইফাই সেটিংস", "ওয়াইফাই সেটিংস",
                 "bluetooth settings", "ব্লুটুথ সেটিংস",
-                "display settings", "screen settings", "brightness settings", "open brightness settings", "ডিসপ্লে সেটিংস", "স্ক্রিন সেটিংস", "ব্রাইটনেস সেটিংস", "উজ্জ্বলতা সেটিংস",
+                "display settings", "screen settings", "brightness settings", "open brightness settings", "brightness up", "increase brightness", "brightness down", "decrease brightness", "উজ্জ্বলতা বাড়াও", "উজ্জ্বলতা কমাও", "ব্রাইটনেস বাড়াও", "ব্রাইটনেস কমাও", "ডিসপ্লে সেটিংস", "স্ক্রিন সেটিংস", "ব্রাইটনেস সেটিংস", "উজ্জ্বলতা সেটিংস",
                 "sound settings", "audio settings", "সাউন্ড সেটিংস",
                 "battery settings", "ব্যাটারি সেটিংস",
                 "app settings", "apps settings", "অ্যাপ সেটিংস",
@@ -188,6 +189,46 @@ class TomAccessibilityService : AccessibilityService() {
                     val audio = service.getSystemService(AUDIO_SERVICE) as AudioManager
                     audio.adjustStreamVolume(AudioManager.STREAM_MUSIC, AudioManager.ADJUST_UNMUTE, AudioManager.FLAG_SHOW_UI)
                     done("মিডিয়া শব্দ চালু করছি।", "Unmuting media volume.")
+                }
+
+                listOf("brightness up", "increase brightness", "উজ্জ্বলতা বাড়াও", "ব্রাইটনেস বাড়াও").any { value == it } -> {
+                    if (!Settings.System.canWrite(service)) {
+                        service.startActivity(Intent(Settings.ACTION_MANAGE_WRITE_SETTINGS).setData(android.net.Uri.parse("package:" + service.packageName)).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+                        done("উজ্জ্বলতা নিয়ন্ত্রণের অনুমতি দিন, তারপর আবার বলুন।", "Allow modify-system-settings permission, then repeat the command.")
+                    } else {
+                        val current = Settings.System.getInt(service.contentResolver, Settings.System.SCREEN_BRIGHTNESS, 128)
+                        val next = (current + 32).coerceAtMost(255)
+                        val changed = Settings.System.putInt(service.contentResolver, Settings.System.SCREEN_BRIGHTNESS, next)
+                        if (changed) done("স্ক্রিনের উজ্জ্বলতা বাড়ানো হয়েছে।", "Screen brightness increased.")
+                        else done("উজ্জ্বলতা পরিবর্তন করা যায়নি।", "Could not change screen brightness.")
+                    }
+                }
+                listOf("brightness down", "decrease brightness", "উজ্জ্বলতা কমাও", "ব্রাইটনেস কমাও").any { value == it } -> {
+                    if (!Settings.System.canWrite(service)) {
+                        service.startActivity(Intent(Settings.ACTION_MANAGE_WRITE_SETTINGS).setData(android.net.Uri.parse("package:" + service.packageName)).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+                        done("উজ্জ্বলতা নিয়ন্ত্রণের অনুমতি দিন, তারপর আবার বলুন।", "Allow modify-system-settings permission, then repeat the command.")
+                    } else {
+                        val current = Settings.System.getInt(service.contentResolver, Settings.System.SCREEN_BRIGHTNESS, 128)
+                        val next = (current - 32).coerceAtLeast(10)
+                        val changed = Settings.System.putInt(service.contentResolver, Settings.System.SCREEN_BRIGHTNESS, next)
+                        if (changed) done("স্ক্রিনের উজ্জ্বলতা কমানো হয়েছে।", "Screen brightness decreased.")
+                        else done("উজ্জ্বলতা পরিবর্তন করা যায়নি।", "Could not change screen brightness.")
+                    }
+                }
+                listOf("play", "pause", "play pause", "next track", "previous track", "পরের গান", "আগের গান", "গান চালাও", "গান থামাও").any { value == it } -> {
+                    val audio = service.getSystemService(AUDIO_SERVICE) as AudioManager
+                    val keyCode = when (value) {
+                        "next track", "পরের গান" -> android.view.KeyEvent.KEYCODE_MEDIA_NEXT
+                        "previous track", "আগের গান" -> android.view.KeyEvent.KEYCODE_MEDIA_PREVIOUS
+                        "play" , "গান চালাও" -> android.view.KeyEvent.KEYCODE_MEDIA_PLAY
+                        "pause", "গান থামাও" -> android.view.KeyEvent.KEYCODE_MEDIA_PAUSE
+                        else -> android.view.KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE
+                    }
+                    val down = android.view.KeyEvent(android.view.KeyEvent.ACTION_DOWN, keyCode)
+                    val up = android.view.KeyEvent(android.view.KeyEvent.ACTION_UP, keyCode)
+                    audio.dispatchMediaKeyEvent(down)
+                    audio.dispatchMediaKeyEvent(up)
+                    done("মিডিয়া কমান্ড পাঠানো হয়েছে।", "Media command dispatched.")
                 }
                 listOf("wifi settings", "ওয়াইফাই সেটিংস", "ওয়াইফাই সেটিংস").any { value == it } -> {
                     service.startActivity(Intent(Settings.ACTION_WIFI_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
