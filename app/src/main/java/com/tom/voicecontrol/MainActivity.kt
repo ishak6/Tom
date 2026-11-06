@@ -174,7 +174,7 @@ class MainActivity : ComponentActivity(), TextToSpeech.OnInitListener {
         } + if (onDeviceAvailable) " • Android on-device service available for fallback" else ""
     }
 
-    private fun startVoiceInput(forceSystemRecognizer: Boolean = false) {
+    private fun startVoiceInput() {
         if (selectedLanguage.startsWith("bn")) {
             val engine = offlineBengaliEngine
             if (engine == null || !engine.isModelInstalled()) {
@@ -186,6 +186,12 @@ class MainActivity : ComponentActivity(), TextToSpeech.OnInitListener {
             engine.startListening()
             return
         }
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S ||
+            !SpeechRecognizer.isOnDeviceRecognitionAvailable(this)) {
+            isListening = false
+            status = "English offline speech service is unavailable. Install an offline English speech pack in Android voice settings."
+            return
+        }
         if (!SpeechRecognizer.isRecognitionAvailable(this)) {
             status = "এই ডিভাইসে speech recognition service নেই"
             return
@@ -194,15 +200,7 @@ class MainActivity : ComponentActivity(), TextToSpeech.OnInitListener {
 
         try {
             speechRecognizer?.destroy()
-            speechRecognizer = if (
-                !forceSystemRecognizer &&
-                Build.VERSION.SDK_INT >= Build.VERSION_CODES.S &&
-                SpeechRecognizer.isOnDeviceRecognitionAvailable(this)
-            ) {
-                SpeechRecognizer.createOnDeviceSpeechRecognizer(this)
-            } else {
-                SpeechRecognizer.createSpeechRecognizer(this)
-            }
+            speechRecognizer = SpeechRecognizer.createOnDeviceSpeechRecognizer(this)
 
             speechRecognizer?.setRecognitionListener(object : RecognitionListener {
                 override fun onReadyForSpeech(params: Bundle?) {
@@ -218,9 +216,8 @@ class MainActivity : ComponentActivity(), TextToSpeech.OnInitListener {
                 }
                 override fun onError(error: Int) {
                     isListening = false
-                    if (error == SpeechRecognizer.ERROR_LANGUAGE_UNAVAILABLE && !forceSystemRecognizer) {
-                        status = "On-device ভাষা পাওয়া যায়নি • System speech service দিয়ে আবার চেষ্টা করছি…"
-                        startVoiceInput(forceSystemRecognizer = true)
+                    if (error == SpeechRecognizer.ERROR_LANGUAGE_UNAVAILABLE) {
+                        status = "English offline language pack unavailable. Install the language pack in Android voice settings, then retry."
                     } else {
                         status = "Speech error: ${speechErrorText(error)}"
                     }
@@ -249,9 +246,8 @@ class MainActivity : ComponentActivity(), TextToSpeech.OnInitListener {
                 putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
                 putExtra(RecognizerIntent.EXTRA_LANGUAGE, selectedLanguage)
                 putExtra(RecognizerIntent.EXTRA_LANGUAGE_PREFERENCE, selectedLanguage)
-                // Prefer on-device recognizer when available. If its language pack is missing,
-                // the error handler retries with the system recognizer and allows network fallback.
-                putExtra(RecognizerIntent.EXTRA_PREFER_OFFLINE, !forceSystemRecognizer)
+                // English recognition must remain on-device; never silently fall back to network.
+                putExtra(RecognizerIntent.EXTRA_PREFER_OFFLINE, true)
                 putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, true)
                 putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 3)
             }
