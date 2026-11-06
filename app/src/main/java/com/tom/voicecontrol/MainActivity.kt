@@ -75,9 +75,11 @@ class MainActivity : ComponentActivity(), TextToSpeech.OnInitListener {
     private var responseText by mutableStateOf("মাইক্রোফোন চাপ দিয়ে কথা বলুন।")
     private var isListening by mutableStateOf(false)
     private var offlineModeLabel by mutableStateOf("Offline speech availability checking…")
+    private var recentCommands by mutableStateOf(listOf<String>())
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        recentCommands = getSharedPreferences("tom_local_history", MODE_PRIVATE).getString("commands", "").orEmpty().split("\n").filter { it.isNotBlank() }.take(10)
         textToSpeech = TextToSpeech(this, this)
         offlineBengaliEngine = OfflineBengaliSpeechEngine(
             context = applicationContext,
@@ -134,6 +136,7 @@ class MainActivity : ComponentActivity(), TextToSpeech.OnInitListener {
                     language = selectedLanguage,
                     offlineLabel = offlineModeLabel,
                     modelInstalled = offlineBengaliEngine?.isModelInstalled() == true,
+                    recentCommands = recentCommands,
                     onDownloadModel = { offlineBengaliEngine?.downloadModel() },
                     onListen = {
                         if (hasMicPermission) startVoiceInput()
@@ -260,6 +263,8 @@ class MainActivity : ComponentActivity(), TextToSpeech.OnInitListener {
     }
 
     private fun handleLocalCommand(raw: String) {
+        recentCommands = (listOf(raw.trim()) + recentCommands).filter { it.isNotBlank() }.distinct().take(10)
+        getSharedPreferences("tom_local_history", MODE_PRIVATE).edit().putString("commands", recentCommands.joinToString("\n")).apply()
         // Select response language from the recognized utterance, not only the UI preference.
         val containsBanglaScript = raw.any { it in '\u0980'..'\u09FF' }
         val isBangla = containsBanglaScript || selectedLanguage.startsWith("bn")
@@ -497,6 +502,7 @@ private fun TomHome(
     language: String,
     offlineLabel: String,
     modelInstalled: Boolean,
+    recentCommands: List<String>,
     onDownloadModel: () -> Unit,
     onListen: () -> Unit,
     onStop: () -> Unit,
@@ -567,6 +573,15 @@ private fun TomHome(
             InfoCard("YOU SAID", recognizedText)
             Spacer(Modifier.height(10.dp))
             InfoCard("TOM REPLIED", responseText)
+            Spacer(Modifier.height(10.dp))
+            Card(modifier = Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = TomSurface), shape = RoundedCornerShape(18.dp)) {
+                Column(Modifier.padding(14.dp)) {
+                    Text("RECENT COMMANDS • LOCAL ONLY", color = TomAccent, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                    Spacer(Modifier.height(5.dp))
+                    if (recentCommands.isEmpty()) Text("এখনো কোনো কমান্ড নেই।", color = Color.LightGray, fontSize = 12.sp)
+                    else recentCommands.forEachIndexed { index, item -> Text("${index + 1}. $item", color = Color.LightGray, fontSize = 12.sp, modifier = Modifier.padding(vertical = 2.dp)) }
+                }
+            }
             Spacer(Modifier.height(10.dp))
             Card(
                 modifier = Modifier.fillMaxWidth(),
