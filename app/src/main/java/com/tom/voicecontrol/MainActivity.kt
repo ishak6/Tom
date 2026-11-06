@@ -272,6 +272,18 @@ class MainActivity : ComponentActivity(), TextToSpeech.OnInitListener {
             .removePrefix("টম ")
             .trim()
 
+        // Handle the general Android Settings intent before generic app-launch routing.
+        // "open settings" and "সেটিংস খোলো" also match the app-launch patterns.
+        val settingsCommands = setOf("settings", "open settings", "সেটিংস", "সেটিংস খোলো", "ফোনের সেটিংস খোলো")
+        if (command in settingsCommands) {
+            startActivity(Intent(Settings.ACTION_SETTINGS))
+            val answer = if (isBangla) "ফোনের সেটিংস খুলছি।" else "Opening Android settings."
+            responseText = answer
+            status = "Local command processed"
+            speak(answer)
+            return
+        }
+
         // Phone-control routing is deliberately checked only after ASR text is normalized.
         if (TomAccessibilityService.matchesCommand(command)) {
             val phoneControlEnabled = TomAccessibilityService.isEnabled(this)
@@ -311,7 +323,6 @@ class MainActivity : ComponentActivity(), TextToSpeech.OnInitListener {
         )
         val helpCommands = setOf("help", "what can you do", "কী করতে পারো", "কি করতে পারো", "তুমি কী করতে পারো", "তুমি কি করতে পারো", "সাহায্য")
         val identityCommands = setOf("who are you", "what is your name", "তোমার নাম কী", "তোমার নাম কি", "তুমি কে")
-        val settingsCommands = setOf("settings", "open settings", "সেটিংস", "সেটিংস খোলো", "ফোনের সেটিংস খোলো")
         val stopCommands = setOf("stop", "বন্ধ কর", "থামো", "চুপ কর", "থেমে যাও")
 
         val answer = when {
