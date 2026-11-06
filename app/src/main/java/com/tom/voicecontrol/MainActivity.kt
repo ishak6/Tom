@@ -73,6 +73,7 @@ class MainActivity : ComponentActivity(), TextToSpeech.OnInitListener {
     private var responseText by mutableStateOf("মাইক্রোফোন চাপ দিয়ে কথা বলুন।")
     private var isListening by mutableStateOf(false)
     private var offlineModeLabel by mutableStateOf("Offline speech availability checking…")
+    private var resourceStatus by mutableStateOf("RAM ও Storage status checking…")
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -100,6 +101,7 @@ class MainActivity : ComponentActivity(), TextToSpeech.OnInitListener {
             }
         )
         updateSpeechAvailability()
+        updateResourceStatus()
 
         setContent {
             val hasMicPermission = ContextCompat.checkSelfPermission(
@@ -146,6 +148,7 @@ class MainActivity : ComponentActivity(), TextToSpeech.OnInitListener {
                     isListening = isListening,
                     language = selectedLanguage,
                     offlineLabel = offlineModeLabel,
+                    resourceStatus = resourceStatus,
                     modelInstalled = offlineBengaliEngine?.isModelInstalled() == true,
                     onDownloadModel = { offlineBengaliEngine?.downloadModel() },
                     onListen = {
@@ -176,6 +179,20 @@ class MainActivity : ComponentActivity(), TextToSpeech.OnInitListener {
                     }
                 )
             }
+        }
+    }
+
+    override fun onResume() {
+        super.onResume()
+        updateResourceStatus()
+    }
+
+    private fun updateResourceStatus() {
+        try {
+            val snapshot = TomResourceManager.snapshot(this)
+            resourceStatus = "RAM: ${TomResourceManager.formatBytes(snapshot.availableRamBytes)} free / ${TomResourceManager.formatBytes(snapshot.totalRamBytes)} total • Storage: ${TomResourceManager.formatBytes(snapshot.appStorageAvailableBytes)} free • ${if (snapshot.lowMemoryMode) "Low-RAM mode" else "Adaptive mode"}"
+        } catch (error: Exception) {
+            resourceStatus = "Resource status unavailable: ${error.localizedMessage ?: "unknown"}"
         }
     }
 
@@ -418,6 +435,7 @@ class MainActivity : ComponentActivity(), TextToSpeech.OnInitListener {
 @androidx.compose.runtime.Composable
 private fun TomHome(
     status: String,
+    resourceStatus: String,
     recognizedText: String,
     responseText: String,
     isListening: Boolean,
@@ -512,6 +530,8 @@ private fun TomHome(
                 fontSize = 11.sp
             )
             Spacer(Modifier.height(18.dp))
+            InfoCard("AUTOMATIC RESOURCE MANAGER", resourceStatus)
+            Spacer(Modifier.height(10.dp))
             InfoCard("YOU SAID", recognizedText)
             Spacer(Modifier.height(10.dp))
             InfoCard("TOM REPLIED", responseText)
