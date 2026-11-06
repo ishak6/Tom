@@ -32,6 +32,25 @@
                 android:resource="@xml/tom_accessibility_service" />
         </service>
 
+        <service
+            android:name=".TomVoiceInteractionService"
+            android:label="Tom Assistant"
+            android:permission="android.permission.BIND_VOICE_INTERACTION"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.service.voice.VoiceInteractionService" />
+            </intent-filter>
+            <meta-data
+                android:name="android.voice_interaction_service"
+                android:resource="@xml/tom_voice_interaction_service" />
+        </service>
+
+        <service
+            android:name=".TomVoiceSessionService"
+            android:label="Tom Voice Session"
+            android:permission="android.permission.BIND_VOICE_INTERACTION"
+            android:exported="true" />
+
         <activity
             android:name=".MainActivity"
             android:exported="true">
