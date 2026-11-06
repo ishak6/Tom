@@ -73,6 +73,7 @@ class MainActivity : ComponentActivity(), TextToSpeech.OnInitListener {
     private var responseText by mutableStateOf("মাইক্রোফোন চাপ দিয়ে কথা বলুন।")
     private var isListening by mutableStateOf(false)
     private var offlineModeLabel by mutableStateOf("Offline speech availability checking…")
+    private var assistantRoleHeld by mutableStateOf(false)
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -100,6 +101,7 @@ class MainActivity : ComponentActivity(), TextToSpeech.OnInitListener {
             }
         )
         updateSpeechAvailability()
+        assistantRoleHeld = TomAssistantRole.isDefaultAssistant(this)
 
         setContent {
             val hasMicPermission = ContextCompat.checkSelfPermission(
@@ -127,6 +129,7 @@ class MainActivity : ComponentActivity(), TextToSpeech.OnInitListener {
                     isListening = isListening,
                     language = selectedLanguage,
                     offlineLabel = offlineModeLabel,
+                    assistantRoleHeld = assistantRoleHeld,
                     modelInstalled = offlineBengaliEngine?.isModelInstalled() == true,
                     onDownloadModel = { offlineBengaliEngine?.downloadModel() },
                     onListen = {
@@ -138,10 +141,18 @@ class MainActivity : ComponentActivity(), TextToSpeech.OnInitListener {
                     onSettings = { startActivity(Intent(Settings.ACTION_SETTINGS)) },
                     onAccessibilitySettings = {
                         startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))
+                    },
+                    onDefaultAssistant = {
+                        TomAssistantRole.requestDefaultAssistantRole(this)
                     }
                 )
             }
         }
+    }
+
+    override fun onResume() {
+        super.onResume()
+        assistantRoleHeld = TomAssistantRole.isDefaultAssistant(this)
     }
 
     override fun onInit(result: Int) {
@@ -361,13 +372,15 @@ private fun TomHome(
     isListening: Boolean,
     language: String,
     offlineLabel: String,
+    assistantRoleHeld: Boolean,
     modelInstalled: Boolean,
     onDownloadModel: () -> Unit,
     onListen: () -> Unit,
     onStop: () -> Unit,
     onLanguage: (String) -> Unit,
     onSettings: () -> Unit,
-    onAccessibilitySettings: () -> Unit
+    onAccessibilitySettings: () -> Unit,
+    onDefaultAssistant: () -> Unit
 ) {
     Surface(modifier = Modifier.fillMaxSize(), color = TomBackground) {
         Column(
@@ -452,6 +465,14 @@ private fun TomHome(
                         modifier = Modifier.fillMaxWidth()
                     ) {
                         Text("Enable Tom Phone Control")
+                    }
+                    Spacer(Modifier.height(8.dp))
+                    OutlinedButton(
+                        onClick = onDefaultAssistant,
+                        enabled = !assistantRoleHeld,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text(if (assistantRoleHeld) "Tom is your Default Assistant" else "Set Tom as Default Assistant")
                     }
                 }
             }
