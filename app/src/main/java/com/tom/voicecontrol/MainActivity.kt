@@ -111,11 +111,24 @@ class MainActivity : ComponentActivity(), TextToSpeech.OnInitListener {
                 if (granted) startVoiceInput()
                 else status = "মাইক্রোফোন অনুমতি দেওয়া হয়নি • Permission denied"
             }
-            val backgroundPermissionLauncher = rememberLauncherForActivityResult(
+            val backgroundNotificationPermissionLauncher = rememberLauncherForActivityResult(
                 ActivityResultContracts.RequestPermission()
             ) { granted ->
                 if (granted) startBackgroundVoiceService()
-                else status = "Background listening-এর জন্য microphone permission প্রয়োজন"
+                else status = "দৃশ্যমান listening notification ছাড়া background microphone চালু করা হয়নি"
+            }
+            val backgroundPermissionLauncher = rememberLauncherForActivityResult(
+                ActivityResultContracts.RequestPermission()
+            ) { granted ->
+                if (!granted) {
+                    status = "Background listening-এর জন্য microphone permission প্রয়োজন"
+                } else if (Build.VERSION.SDK_INT >= 33 &&
+                    ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
+                ) {
+                    backgroundNotificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+                } else {
+                    startBackgroundVoiceService()
+                }
             }
 
             MaterialTheme(colorScheme = darkColorScheme(
@@ -145,10 +158,14 @@ class MainActivity : ComponentActivity(), TextToSpeech.OnInitListener {
                             status = "Background local listening এখন বাংলা মডেলেই সীমাবদ্ধ"
                         } else if (offlineBengaliEngine?.isModelInstalled() != true) {
                             status = "আগে বাংলা Offline Model Download করুন"
-                        } else if (ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED) {
-                            startBackgroundVoiceService()
-                        } else {
+                        } else if (ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
                             backgroundPermissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
+                        } else if (Build.VERSION.SDK_INT >= 33 &&
+                            ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
+                        ) {
+                            backgroundNotificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+                        } else {
+                            startBackgroundVoiceService()
                         }
                     },
                     onBackgroundStop = { stopBackgroundVoiceService() },
@@ -334,6 +351,7 @@ class MainActivity : ComponentActivity(), TextToSpeech.OnInitListener {
     }
 
     private fun startBackgroundVoiceService() {
+        stopVoiceInput()
         try {
             val intent = Intent(this, TomBackgroundVoiceService::class.java).apply {
                 action = TomBackgroundVoiceService.ACTION_START
