@@ -112,7 +112,12 @@ class TomBackgroundVoiceService : Service() {
             phrase.startsWith(PREFIX_BN) -> phrase.removePrefix(PREFIX_BN).trim()
             else -> return
         }
-        if (command.isBlank() || !TomAccessibilityService.isEnabled(this)) return
+        if (command.isBlank()) return
+        if (TomCommandHarness.parse(command)?.intent == TomCommandHarness.Intent.STOP) {
+            mainHandler.post { stopListeningAndSelf() }
+            return
+        }
+        if (!TomAccessibilityService.isEnabled(this)) return
         if (!TomAccessibilityService.matchesCommand(command)) return
 
         mainHandler.post {
