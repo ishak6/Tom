@@ -104,7 +104,10 @@ class MainActivity : ComponentActivity(), TextToSpeech.OnInitListener {
             onStatus = { message ->
                 runOnUiThread {
                     status = message
-                    isListening = message.contains("শুনছি")
+                    isListening = message.contains("শুনছি") ||
+                        message.contains("চালু হচ্ছে") ||
+                        message.contains("কথা শনাক্ত করছি") ||
+                        message.contains("মাইক্রোফোন চালু হচ্ছে")
                     updateSpeechAvailability()
                 }
             },
