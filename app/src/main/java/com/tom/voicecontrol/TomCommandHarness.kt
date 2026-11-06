@@ -58,7 +58,7 @@ object TomCommandHarness {
         Intent.PHONE to setOf("open phone", "ফোন খোলো"),
         Intent.SCREENSHOT to setOf("take screenshot", "screenshot", "স্ক্রিনশট নাও"),
         Intent.GREETING to setOf("hello", "hi", "হ্যালো", "হাই", "সালাম", "আসসালামু আলাইকুম"),
-        Intent.TIME to setOf("time", "what time is it", "সময়", "সময়", "কয়টা", "কটা বাজে"),
+        Intent.TIME to setOf("time", "what time is it", "সময়", "সময়", "কয়টা", "কয়টা বাজে", "কটা বাজে", "এখন কয়টা বাজে", "এখন সময় কত"),
         Intent.GENERAL_SETTINGS to setOf("settings", "open settings", "সেটিংস", "সেটিং", "সেটিংস খোলো"),
         Intent.STOP to setOf("stop", "বন্ধ কর", "থামো")
     )
