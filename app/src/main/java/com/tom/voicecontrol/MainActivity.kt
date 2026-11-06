@@ -4,6 +4,7 @@ import android.Manifest
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Build
+import android.os.BatteryManager
 import android.os.Bundle
 import android.speech.RecognitionListener
 import android.speech.RecognizerIntent
@@ -88,6 +89,10 @@ class MainActivity : ComponentActivity(), TextToSpeech.OnInitListener {
             },
             onText = { text ->
                 runOnUiThread {
+                    // A final offline-ASR utterance must close the microphone before TTS.
+                    // Otherwise Tom can hear its own spoken answer and execute it again.
+                    offlineBengaliEngine?.stopListening()
+                    isListening = false
                     recognizedText = text
                     handleLocalCommand(text)
                 }
@@ -258,16 +263,23 @@ class MainActivity : ComponentActivity(), TextToSpeech.OnInitListener {
     }
 
     private fun handleLocalCommand(raw: String) {
-        val command = raw.lowercase(Locale.ROOT)
         val isBangla = selectedLanguage.startsWith("bn")
+        val command = raw.lowercase(Locale.ROOT)
+            .replace(Regex("[\\p{Punct}\\p{S}]"), " ")
+            .replace(Regex("\\s+"), " ")
+            .trim()
+            .removePrefix("tom ")
+            .removePrefix("টম ")
+            .trim()
 
+        // Phone-control routing is deliberately checked only after ASR text is normalized.
         if (TomAccessibilityService.matchesCommand(command)) {
             val phoneControlEnabled = TomAccessibilityService.isEnabled(this)
             val phoneControlAnswer = if (!phoneControlEnabled) {
                 if (isBangla) {
-                    "ফোন নিয়ন্ত্রণ ব্যবহার করতে Settings → Accessibility → Tom Phone Control চালু করুন। এটি আপনার নিজের অনুমতি ছাড়া চালু হবে না।"
+                    "ফোন নিয়ন্ত্রণ ব্যবহার করতে Settings → Accessibility → Tom Phone Control নিজে চালু করুন।"
                 } else {
-                    "To use phone control, open Settings → Accessibility → Tom Phone Control and enable it yourself."
+                    "To use phone control, enable Tom Phone Control in Android Accessibility settings."
                 }
             } else {
                 TomAccessibilityService.executeCommand(command, isBangla) ?: if (isBangla) {
@@ -282,27 +294,78 @@ class MainActivity : ComponentActivity(), TextToSpeech.OnInitListener {
             return
         }
 
+        val greetingCommands = setOf("hello", "hi", "hey", "হ্যালো", "হাই", "সালাম", "আসসালামু আলাইকুম")
+        val timeCommands = setOf(
+            "time", "what time is it", "what is the time", "tell me the time", "current time", "time please",
+            "সময়", "সময়", "সময় কত", "সময় কত", "এখন সময় কত", "এখন সময় কত",
+            "এখন কয়টা বাজে", "এখন কয়টা বাজে", "কয়টা বাজে", "কয়টা বাজে", "কটা বাজে",
+            "সময় বলো", "সময় বলো", "বর্তমান সময় বলো", "বর্তমান সময় বলো"
+        )
+        val dateCommands = setOf(
+            "date", "today date", "what is the date", "what is today's date",
+            "আজকের তারিখ", "আজ কত তারিখ", "আজকের তারিখ কত", "তারিখ বলো"
+        )
+        val batteryCommands = setOf(
+            "battery", "battery level", "how much battery", "what is my battery level",
+            "ব্যাটারি", "ব্যাটারি কত", "চার্জ কত", "ফোনে কত চার্জ আছে", "ব্যাটারির অবস্থা বলো"
+        )
+        val helpCommands = setOf("help", "what can you do", "কী করতে পারো", "কি করতে পারো", "তুমি কী করতে পারো", "তুমি কি করতে পারো", "সাহায্য")
+        val identityCommands = setOf("who are you", "what is your name", "তোমার নাম কী", "তোমার নাম কি", "তুমি কে")
+        val settingsCommands = setOf("settings", "open settings", "সেটিংস", "সেটিংস খোলো", "ফোনের সেটিংস খোলো")
+        val stopCommands = setOf("stop", "বন্ধ কর", "থামো", "চুপ কর", "থেমে যাও")
+
         val answer = when {
-            listOf("hello", "হ্যালো", "হাই", "hi", "সালাম", "আসসালামু").any(command::contains) ->
+            command in greetingCommands ->
                 if (isBangla) "হ্যালো! আমি টম। কীভাবে সাহায্য করতে পারি?" else "Hello! I'm Tom. How can I help?"
-            listOf("time", "সময়", "সময়", "কয়টা", "কটা বাজে").any(command::contains) -> {
-                val now = DateFormat.getTimeInstance(DateFormat.SHORT, if (isBangla) Locale("bn", "BD") else Locale.US).format(Date())
+            command in timeCommands -> {
+                val now = DateFormat.getTimeInstance(
+                    DateFormat.SHORT,
+                    if (isBangla) Locale("bn", "BD") else Locale.US
+                ).format(Date())
                 if (isBangla) "এখন সময় $now" else "The time is $now"
             }
-            listOf("settings", "সেটিংস", "সেটিং").any(command::contains) -> {
+            command in dateCommands -> {
+                val today = DateFormat.getDateInstance(
+                    DateFormat.LONG,
+                    if (isBangla) Locale("bn", "BD") else Locale.US
+                ).format(Date())
+                if (isBangla) "আজ $today" else "Today is $today"
+            }
+            command in batteryCommands -> {
+                val batteryManager = getSystemService(BATTERY_SERVICE) as BatteryManager
+                val level = batteryManager.getIntProperty(BatteryManager.BATTERY_PROPERTY_CAPACITY)
+                if (level in 0..100) {
+                    if (isBangla) "তোমার ফোনের ব্যাটারি $level শতাংশ।" else "Your phone battery is at $level percent."
+                } else {
+                    if (isBangla) "ব্যাটারির তথ্য পাওয়া যাচ্ছে না।" else "Battery information is unavailable."
+                }
+            }
+            command in helpCommands ->
+                if (isBangla) {
+                    "আমি সময়, তারিখ, ব্যাটারি, ফোনের সেটিংস, অ্যাপ খোলা এবং ফোনের নেভিগেশন কমান্ডে সাহায্য করতে পারি। অন্য প্রশ্নের জন্য ইন্টারনেট বা AI সংযোগ প্রয়োজন।"
+                } else {
+                    "I can help with time, date, battery, settings, opening apps, and phone navigation. General questions need an internet or AI connection."
+                }
+            command in identityCommands ->
+                if (isBangla) "আমি টম, তোমার ফোনের ভয়েস অ্যাসিস্ট্যান্ট।" else "I'm Tom, your phone voice assistant."
+            command in settingsCommands -> {
                 startActivity(Intent(Settings.ACTION_SETTINGS))
                 if (isBangla) "ফোনের সেটিংস খুলছি।" else "Opening Android settings."
             }
-            listOf("stop", "বন্ধ কর", "থামো").any(command::contains) ->
+            command in stopCommands -> {
+                textToSpeech?.stop()
                 if (isBangla) "ঠিক আছে।" else "Okay."
+            }
+            command.isBlank() ->
+                if (isBangla) "কথা পরিষ্কারভাবে শনাক্ত হয়নি। আরেকবার বলো।" else "I couldn't recognize that clearly. Please try again."
             else -> if (isBangla) {
-                "এই কমান্ডটি এখনো যোগ করা হয়নি। আমি আপাতত সময়, হ্যালো এবং সেটিংস কমান্ড বুঝি।"
+                "আমি শুনেছি: $raw। এই কাজটি এখনো যোগ করা হয়নি। 'সাহায্য' বললে কী কী করতে পারি জানাব।"
             } else {
-                "That command is not supported yet. I currently understand hello, time, and settings."
+                "I heard: $raw. That action is not implemented yet. Say 'help' to hear what I can do."
             }
         }
         responseText = answer
-        status = "কমান্ড সম্পন্ন • Local command processed"
+        status = "কমান্ড যাচাই সম্পন্ন • Local command processed"
         speak(answer)
     }
 
