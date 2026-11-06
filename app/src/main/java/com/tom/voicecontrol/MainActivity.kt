@@ -111,6 +111,12 @@ class MainActivity : ComponentActivity(), TextToSpeech.OnInitListener {
                 if (granted) startVoiceInput()
                 else status = "মাইক্রোফোন অনুমতি দেওয়া হয়নি • Permission denied"
             }
+            val backgroundPermissionLauncher = rememberLauncherForActivityResult(
+                ActivityResultContracts.RequestPermission()
+            ) { granted ->
+                if (granted) startBackgroundVoiceService()
+                else status = "Background listening-এর জন্য microphone permission প্রয়োজন"
+            }
 
             MaterialTheme(colorScheme = darkColorScheme(
                 primary = TomAccent,
@@ -134,6 +140,18 @@ class MainActivity : ComponentActivity(), TextToSpeech.OnInitListener {
                         else permissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
                     },
                     onStop = { stopVoiceInput() },
+                    onBackgroundStart = {
+                        if (selectedLanguage != "bn-BD") {
+                            status = "Background local listening এখন বাংলা মডেলেই সীমাবদ্ধ"
+                        } else if (offlineBengaliEngine?.isModelInstalled() != true) {
+                            status = "আগে বাংলা Offline Model Download করুন"
+                        } else if (ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED) {
+                            startBackgroundVoiceService()
+                        } else {
+                            backgroundPermissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
+                        }
+                    },
+                    onBackgroundStop = { stopBackgroundVoiceService() },
                     onLanguage = { selectedLanguage = it; updateSpeechAvailability() },
                     onSettings = { startActivity(Intent(Settings.ACTION_SETTINGS)) },
                     onAccessibilitySettings = {
@@ -315,6 +333,23 @@ class MainActivity : ComponentActivity(), TextToSpeech.OnInitListener {
         textToSpeech?.speak(text, TextToSpeech.QUEUE_FLUSH, null, "tom-response")
     }
 
+    private fun startBackgroundVoiceService() {
+        try {
+            val intent = Intent(this, TomBackgroundVoiceService::class.java).apply {
+                action = TomBackgroundVoiceService.ACTION_START
+            }
+            ContextCompat.startForegroundService(this, intent)
+            status = "Background local listening requested • Notification থেকে Stop করতে পারবেন"
+        } catch (error: Exception) {
+            status = "Background service শুরু হয়নি: ${error.localizedMessage ?: "Unknown error"}"
+        }
+    }
+
+    private fun stopBackgroundVoiceService() {
+        stopService(Intent(this, TomBackgroundVoiceService::class.java))
+        status = "Background listening বন্ধ করার অনুরোধ পাঠানো হয়েছে"
+    }
+
     private fun stopVoiceInput() {
         offlineBengaliEngine?.stopListening()
         speechRecognizer?.cancel()
@@ -360,6 +395,8 @@ private fun TomHome(
     onDownloadModel: () -> Unit,
     onListen: () -> Unit,
     onStop: () -> Unit,
+    onBackgroundStart: () -> Unit,
+    onBackgroundStop: () -> Unit,
     onLanguage: (String) -> Unit,
     onSettings: () -> Unit,
     onAccessibilitySettings: () -> Unit
@@ -423,6 +460,25 @@ private fun TomHome(
                     fontWeight = FontWeight.SemiBold
                 )
             }
+            Spacer(Modifier.height(10.dp))
+            OutlinedButton(
+                onClick = onBackgroundStart,
+                modifier = Modifier.fillMaxWidth(),
+                enabled = language == "bn-BD" && modelInstalled
+            ) {
+                Text("Start background listening • Tom prefix required")
+            }
+            OutlinedButton(
+                onClick = onBackgroundStop,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text("Stop background listening")
+            }
+            Text(
+                "এটি দৃশ্যমান notification সহ চালু হবে। ব্যাকগ্রাউন্ডে শুধু বাংলা local ASR চলে; কমান্ডের আগে “Tom …” বলতে হবে এবং Phone Control আলাদা করে Enable থাকতে হবে।",
+                color = Color.Gray,
+                fontSize = 11.sp
+            )
             Spacer(Modifier.height(18.dp))
             InfoCard("YOU SAID", recognizedText)
             Spacer(Modifier.height(10.dp))
