@@ -88,7 +88,7 @@ class TomAccessibilityService : AccessibilityService() {
                 "unmute", "শব্দ চালু কর", "আনমিউট",
                 "wifi settings", "ওয়াইফাই সেটিংস", "ওয়াইফাই সেটিংস",
                 "bluetooth settings", "ব্লুটুথ সেটিংস",
-                "display settings", "screen settings", "ডিসপ্লে সেটিংস", "স্ক্রিন সেটিংস",
+                "display settings", "screen settings", "brightness settings", "open brightness settings", "ডিসপ্লে সেটিংস", "স্ক্রিন সেটিংস", "ব্রাইটনেস সেটিংস", "উজ্জ্বলতা সেটিংস",
                 "sound settings", "audio settings", "সাউন্ড সেটিংস",
                 "battery settings", "ব্যাটারি সেটিংস",
                 "app settings", "apps settings", "অ্যাপ সেটিংস",
@@ -197,7 +197,7 @@ class TomAccessibilityService : AccessibilityService() {
                     service.startActivity(Intent(Settings.ACTION_BLUETOOTH_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
                     done("Bluetooth সেটিংস খুলছি।", "Opening Bluetooth settings.")
                 }
-                listOf("display settings", "screen settings", "ডিসপ্লে সেটিংস", "স্ক্রিন সেটিংস").any { value == it } ->
+                listOf("display settings", "screen settings", "brightness settings", "open brightness settings", "ডিসপ্লে সেটিংস", "স্ক্রিন সেটিংস", "ব্রাইটনেস সেটিংস", "উজ্জ্বলতা সেটিংস").any { value == it } ->
                     openSettings(service, Settings.ACTION_DISPLAY_SETTINGS, "ডিসপ্লে সেটিংস খুলছি।", "Opening Display settings.", isBangla)
                 listOf("sound settings", "audio settings", "সাউন্ড সেটিংস").any { value == it } ->
                     openSettings(service, Settings.ACTION_SOUND_SETTINGS, "সাউন্ড সেটিংস খুলছি।", "Opening Sound settings.", isBangla)
