@@ -342,7 +342,7 @@ class MainActivity : ComponentActivity(), TextToSpeech.OnInitListener {
             responseText = answer; status = "Timer duration needed"; speak(answer); return
         }
         if (alarmRequest) {
-            val match = Regex("(\\d{1,2})(?::(\\d{2}))?").find(normalizedDigits)
+            val match = Regex("(\\d{1,2})(?:\\s+(\\d{2}))?").find(normalizedDigits)
             if (match != null) {
                 val rawHour = match.groupValues[1].toIntOrNull() ?: -1
                 val minute = match.groupValues[2].ifBlank { "0" }.toIntOrNull() ?: -1
@@ -413,9 +413,9 @@ class MainActivity : ComponentActivity(), TextToSpeech.OnInitListener {
             }
             command in helpCommands ->
                 if (isBangla) {
-                    "আমি সময়, তারিখ, ব্যাটারি, ফোনের সেটিংস, অ্যাপ খোলা এবং ফোনের নেভিগেশন কমান্ডে সাহায্য করতে পারি। অন্য প্রশ্নের জন্য ইন্টারনেট বা AI সংযোগ প্রয়োজন।"
+                    "আমি সময়, তারিখ, ব্যাটারি, অ্যালার্ম, টাইমার, ফোনের সেটিংস, অ্যাপ খোলা এবং ফোনের নেভিগেশন কমান্ডে সাহায্য করতে পারি। অন্য প্রশ্নের জন্য ইন্টারনেট বা AI সংযোগ প্রয়োজন।"
                 } else {
-                    "I can help with time, date, battery, settings, opening apps, and phone navigation. General questions need an internet or AI connection."
+                    "I can help with time, date, battery, alarms, timers, settings, opening apps, and phone navigation. General questions need an internet or AI connection."
                 }
             command in identityCommands ->
                 if (isBangla) "আমি টম, তোমার ফোনের ভয়েস অ্যাসিস্ট্যান্ট।" else "I'm Tom, your phone voice assistant."
