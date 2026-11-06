@@ -4,6 +4,8 @@ import android.Manifest
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Build
+import android.os.Handler
+import android.os.Looper
 import android.os.BatteryManager
 import android.os.PowerManager
 import android.os.Bundle
@@ -75,6 +77,9 @@ class MainActivity : ComponentActivity(), TextToSpeech.OnInitListener {
     private var recognizedText by mutableStateOf("এখানে আপনার কথা দেখা যাবে")
     private var responseText by mutableStateOf("মাইক্রোফোন চাপ দিয়ে কথা বলুন।")
     private var isListening by mutableStateOf(false)
+    // Keeps the user-started voice session active across speech turns; Stop disables it.
+    @Volatile private var autoListenEnabled = false
+    private val mainHandler = Handler(Looper.getMainLooper())
     private var offlineModeLabel by mutableStateOf("Offline speech availability checking…")
     private var modelDownloadProgress by mutableStateOf(0)
     private var modelDownloadActive by mutableStateOf(false)
@@ -204,9 +209,14 @@ class MainActivity : ComponentActivity(), TextToSpeech.OnInitListener {
         if (ttsReady) {
             textToSpeech?.setOnUtteranceProgressListener(object : UtteranceProgressListener() {
                 override fun onStart(utteranceId: String?) = Unit
-                override fun onDone(utteranceId: String?) = Unit
+                override fun onDone(utteranceId: String?) {
+                    scheduleListeningRestart()
+                }
                 override fun onError(utteranceId: String?) {
-                    runOnUiThread { status = "Voice output failed • ভয়েস চালু হয়নি" }
+                    runOnUiThread {
+                        status = "Voice output failed • ভয়েস চালু হয়নি"
+                        scheduleListeningRestart()
+                    }
                 }
             })
         }
@@ -223,7 +233,18 @@ class MainActivity : ComponentActivity(), TextToSpeech.OnInitListener {
         } + if (onDeviceAvailable) " • Android on-device service available for fallback" else ""
     }
 
+    private fun scheduleListeningRestart() {
+        if (!autoListenEnabled || isFinishing || isDestroyed) return
+        mainHandler.removeCallbacksAndMessages(null)
+        mainHandler.postDelayed({
+            if (autoListenEnabled && !isFinishing && !isDestroyed && !isListening) {
+                startVoiceInput()
+            }
+        }, 350L)
+    }
+
     private fun startVoiceInput() {
+        autoListenEnabled = true
         if (selectedLanguage.startsWith("bn")) {
             val engine = offlineBengaliEngine
             if (engine == null || !engine.isModelInstalled()) {
@@ -245,8 +266,8 @@ class MainActivity : ComponentActivity(), TextToSpeech.OnInitListener {
             status = "এই ডিভাইসে speech recognition service নেই"
             return
         }
-        if (isListening) stopVoiceInput()
-
+        // SpeechRecognizer is one-shot on Android. It is recreated for each turn
+        // and re-armed after Tom finishes speaking, until the user presses Stop.
         try {
             speechRecognizer?.destroy()
             speechRecognizer = SpeechRecognizer.createOnDeviceSpeechRecognizer(this)
@@ -269,6 +290,11 @@ class MainActivity : ComponentActivity(), TextToSpeech.OnInitListener {
                         status = "English offline language pack unavailable. Install the language pack in Android voice settings, then retry."
                     } else {
                         status = "Speech error: ${speechErrorText(error)}"
+                        if (error == SpeechRecognizer.ERROR_NO_MATCH ||
+                            error == SpeechRecognizer.ERROR_SPEECH_TIMEOUT ||
+                            error == SpeechRecognizer.ERROR_RECOGNIZER_BUSY) {
+                            scheduleListeningRestart()
+                        }
                     }
                 }
                 override fun onResults(results: Bundle?) {
@@ -277,6 +303,7 @@ class MainActivity : ComponentActivity(), TextToSpeech.OnInitListener {
                         ?.firstOrNull().orEmpty()
                     if (text.isBlank()) {
                         status = "কথা বোঝা যায়নি • আবার চেষ্টা করুন"
+                        scheduleListeningRestart()
                     } else {
                         recognizedText = text
                         handleLocalCommand(text)
@@ -507,6 +534,8 @@ class MainActivity : ComponentActivity(), TextToSpeech.OnInitListener {
     }
 
     private fun stopVoiceInput() {
+        autoListenEnabled = false
+        mainHandler.removeCallbacksAndMessages(null)
         offlineBengaliEngine?.stopListening()
         speechRecognizer?.cancel()
         isListening = false
@@ -528,6 +557,8 @@ class MainActivity : ComponentActivity(), TextToSpeech.OnInitListener {
     }
 
     override fun onDestroy() {
+        autoListenEnabled = false
+        mainHandler.removeCallbacksAndMessages(null)
         offlineBengaliEngine?.release()
         offlineBengaliEngine = null
         speechRecognizer?.destroy()
