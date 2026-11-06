@@ -342,7 +342,11 @@ class MainActivity : ComponentActivity(), TextToSpeech.OnInitListener {
             }
         }
         responseText = answer
-        status = "কমান্ড সম্পন্ন • Local command processed"
+        status = if (parsed == null) {
+            "কমান্ড শনাক্ত হয়নি • Unknown command ignored"
+        } else {
+            "কমান্ড যাচাই হয়েছে • Local command handled"
+        }
         speak(answer)
     }
 
