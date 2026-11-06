@@ -8,6 +8,8 @@ Tom is a native Android voice-assistant prototype built with Kotlin and Jetpack 
 - English recognition through Android's **on-device** speech recognizer only. Tom does not fall back to a network-backed recognizer.
 - Local command handling for greetings, time, Android Settings, app launching, navigation, volume, notifications, and other explicitly supported device actions.
 - Optional phone navigation through an Accessibility Service that the device owner must enable manually.
+- A deterministic command harness normalizes Bengali/English phrases, matches registered aliases exactly, rejects substring false positives, and requires an explicit "open/launch" phrase for app launching.
+- JVM unit tests cover registered aliases, unsupported/ambiguous phrases, app-launch parsing, and blank input.
 - Bengali/English text-to-speech through the Android TTS engine. Offline voice availability depends on installed Android voice data.
 - Explicitly user-started foreground microphone service for background Bengali ASR. It displays an ongoing notification with a Stop action, requires microphone permission, and on Android 13+ asks for notification permission.
 - Background service accepts a spoken command only when the recognized phrase starts with the text prefix "Tom " or "টম ". This is phrase-prefix gating, **not** a dedicated acoustic wake-word detector. The command must also be supported and Tom Phone Control must be manually enabled.
@@ -22,7 +24,15 @@ These are planned items, not working features:
 - Guaranteed screen-off operation, reboot auto-start, and POCO/MIUI autostart/battery-policy compatibility.
 - Device-tested offline English language-pack availability and Bengali TTS voice availability.
 
-The background service is opt-in and can be stopped from its notification or from the app. Android and MIUI may stop microphone work under battery restrictions; screen-off reliability must be tested on the target device. No service starts automatically after reboot.
+The background service is opt-in and can be stopped from its notification, the app, or the spoken "Tom stop" / "টম থামো" command. Android and MIUI may stop microphone work under battery restrictions; screen-off reliability must be tested on the target device. No service starts automatically after reboot.
+
+## Command behavior
+
+- Tom uses exact registered command aliases after case/spacing/punctuation normalization. It does not execute a command just because a word appears inside a longer sentence.
+- App launching requires an explicit phrase such as "open YouTube", "launch Chrome", or "YouTube খোলো". A bare app name is not treated as an instruction.
+- Unrecognized phrases are reported as unsupported and ignored; they are not marked as successful.
+- The command harness is deliberately conservative. Speech recognition can still mishear words, so verify the recognized phrase before relying on device actions.
+- Run the command harness unit tests with `./gradlew :app:testDebugUnitTest`; CI runs them before APK assembly.
 
 ## Privacy and security
 
