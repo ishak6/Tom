@@ -5,6 +5,7 @@ import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Build
 import android.os.BatteryManager
+import android.os.PowerManager
 import android.os.Bundle
 import android.speech.RecognitionListener
 import android.speech.RecognizerIntent
@@ -76,6 +77,23 @@ class MainActivity : ComponentActivity(), TextToSpeech.OnInitListener {
     private var isListening by mutableStateOf(false)
     private var offlineModeLabel by mutableStateOf("Offline speech availability checking…")
     private var recentCommands by mutableStateOf(listOf<String>())
+    private var accessibilityEnabled by mutableStateOf(false)
+    private var microphoneGranted by mutableStateOf(false)
+    private var notificationGranted by mutableStateOf(false)
+    private var batteryOptimizationExempt by mutableStateOf(false)
+
+    private fun refreshDeviceStatus() {
+        accessibilityEnabled = TomAccessibilityService.isEnabled(this)
+        microphoneGranted = ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED
+        notificationGranted = Build.VERSION.SDK_INT < 33 || ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED
+        val power = getSystemService(POWER_SERVICE) as PowerManager
+        batteryOptimizationExempt = power.isIgnoringBatteryOptimizations(packageName)
+    }
+
+    override fun onResume() {
+        super.onResume()
+        refreshDeviceStatus()
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -108,6 +126,7 @@ class MainActivity : ComponentActivity(), TextToSpeech.OnInitListener {
             }
         )
         updateSpeechAvailability()
+        refreshDeviceStatus()
 
         setContent {
             val hasMicPermission = ContextCompat.checkSelfPermission(
@@ -137,6 +156,17 @@ class MainActivity : ComponentActivity(), TextToSpeech.OnInitListener {
                     offlineLabel = offlineModeLabel,
                     modelInstalled = offlineBengaliEngine?.isModelInstalled() == true,
                     recentCommands = recentCommands,
+                    accessibilityEnabled = accessibilityEnabled,
+                    microphoneGranted = microphoneGranted,
+                    notificationGranted = notificationGranted,
+                    batteryOptimizationExempt = batteryOptimizationExempt,
+                    onClearHistory = {
+                        recentCommands = emptyList()
+                        getSharedPreferences("tom_local_history", MODE_PRIVATE).edit().remove("commands").apply()
+                    },
+                    onBatterySettings = {
+                        startActivity(Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS))
+                    },
                     onDownloadModel = { offlineBengaliEngine?.downloadModel() },
                     onListen = {
                         if (hasMicPermission) startVoiceInput()
@@ -503,6 +533,12 @@ private fun TomHome(
     offlineLabel: String,
     modelInstalled: Boolean,
     recentCommands: List<String>,
+    accessibilityEnabled: Boolean,
+    microphoneGranted: Boolean,
+    notificationGranted: Boolean,
+    batteryOptimizationExempt: Boolean,
+    onClearHistory: () -> Unit,
+    onBatterySettings: () -> Unit,
     onDownloadModel: () -> Unit,
     onListen: () -> Unit,
     onStop: () -> Unit,
@@ -580,6 +616,11 @@ private fun TomHome(
                     Spacer(Modifier.height(5.dp))
                     if (recentCommands.isEmpty()) Text("এখনো কোনো কমান্ড নেই।", color = Color.LightGray, fontSize = 12.sp)
                     else recentCommands.forEachIndexed { index, item -> Text("${index + 1}. $item", color = Color.LightGray, fontSize = 12.sp, modifier = Modifier.padding(vertical = 2.dp)) }
+                    if (recentCommands.isNotEmpty()) {
+                        OutlinedButton(onClick = onClearHistory, modifier = Modifier.fillMaxWidth()) {
+                            Text("Clear local history")
+                        }
+                    }
                 }
             }
             Spacer(Modifier.height(10.dp))
@@ -602,6 +643,28 @@ private fun TomHome(
                         modifier = Modifier.fillMaxWidth()
                     ) {
                         Text("Enable Tom Phone Control")
+                    }
+                }
+            }
+            Spacer(Modifier.height(10.dp))
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(containerColor = TomSurface),
+                shape = RoundedCornerShape(18.dp)
+            ) {
+                Column(Modifier.padding(14.dp)) {
+                    Text("PERMISSIONS & DEVICE STATUS", color = TomAccent, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                    Spacer(Modifier.height(8.dp))
+                    Text("Microphone: ${if (microphoneGranted) "Granted" else "Not granted"}", color = Color.LightGray, fontSize = 12.sp)
+                    Text("Tom Phone Control: ${if (accessibilityEnabled) "Enabled" else "Disabled"}", color = Color.LightGray, fontSize = 12.sp)
+                    Text("Notifications: ${if (notificationGranted) "Allowed / not required" else "Not allowed"}", color = Color.LightGray, fontSize = 12.sp)
+                    Text("Battery optimization exemption: ${if (batteryOptimizationExempt) "Exempt" else "Not exempt"}", color = Color.LightGray, fontSize = 12.sp)
+                    Spacer(Modifier.height(8.dp))
+                    OutlinedButton(onClick = onAccessibilitySettings, modifier = Modifier.fillMaxWidth()) {
+                        Text("Manage Accessibility permission")
+                    }
+                    OutlinedButton(onClick = onBatterySettings, modifier = Modifier.fillMaxWidth()) {
+                        Text("Manage battery optimization")
                     }
                 }
             }
