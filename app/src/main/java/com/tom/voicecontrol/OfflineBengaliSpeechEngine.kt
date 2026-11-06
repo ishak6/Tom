@@ -29,6 +29,7 @@ import kotlin.math.max
 class OfflineBengaliSpeechEngine(
     private val context: Context,
     private val onStatus: (String) -> Unit,
+    private val onDownloadProgress: (Int) -> Unit,
     private val onText: (String) -> Unit,
     private val onError: (String) -> Unit
 ) {
@@ -55,37 +56,57 @@ class OfflineBengaliSpeechEngine(
         downloadInProgress = true
         thread(name = "Tom-BN-Model-Download") {
             val archive = File(context.cacheDir, "tom-bn-asr.tar.bz2")
+            var connection: HttpURLConnection? = null
             try {
-                onStatus("বাংলা Offline Model ডাউনলোড হচ্ছে… প্রায় 88 MB")
-                val connection = (URL(MODEL_URL).openConnection() as HttpURLConnection).apply {
-                    connectTimeout = 20_000
-                    readTimeout = 60_000
+                archive.delete()
+                onDownloadProgress(0)
+                onStatus("বাংলা মডেল সার্ভারের সঙ্গে সংযোগ হচ্ছে…")
+                connection = (URL(MODEL_URL).openConnection() as HttpURLConnection).apply {
+                    connectTimeout = 30_000
+                    readTimeout = 120_000
                     instanceFollowRedirects = true
-                    setRequestProperty("User-Agent", "Tom-Android")
+                    setRequestProperty("User-Agent", "Tom-Android/1.0")
+                    setRequestProperty("Accept-Encoding", "identity")
                 }
                 connection.connect()
-                if (connection.responseCode !in 200..299) {
-                    throw IllegalStateException("Download failed: HTTP ${connection.responseCode}")
+                val responseCode = connection.responseCode
+                if (responseCode !in 200..299) {
+                    throw IllegalStateException("সার্ভার HTTP $responseCode দিয়েছে")
                 }
                 val total = connection.contentLengthLong
+                if (total <= 0L) {
+                    throw IllegalStateException("সার্ভার ফাইলের সাইজ জানায়নি; নেটওয়ার্ক বা GitHub mirror পরীক্ষা করুন")
+                }
+                val usable = context.filesDir.usableSpace
+                if (usable < total + 120L * 1024L * 1024L) {
+                    throw IllegalStateException("ফোনে পর্যাপ্ত জায়গা নেই। অন্তত ${((total + 120L * 1024L * 1024L) / (1024L * 1024L))} MB ফাঁকা করুন")
+                }
                 connection.inputStream.use { input ->
                     FileOutputStream(archive).use { output ->
-                        val buffer = ByteArray(64 * 1024)
+                        val buffer = ByteArray(128 * 1024)
                         var received = 0L
+                        var lastReported = -1
                         while (true) {
                             val count = input.read(buffer)
                             if (count < 0) break
                             output.write(buffer, 0, count)
                             received += count
-                            if (total > 0L) {
-                                val percent = (received * 100 / total).toInt()
-                                onStatus("বাংলা মডেল ডাউনলোড: $percent%")
+                            val percent = ((received * 100) / total).toInt().coerceIn(0, 100)
+                            if (percent != lastReported) {
+                                lastReported = percent
+                                onDownloadProgress(percent)
+                                onStatus("বাংলা মডেল ডাউনলোড হচ্ছে: $percent%")
                             }
+                        }
+                        output.fd.sync()
+                        if (received != total) {
+                            throw IllegalStateException("ডাউনলোড অসম্পূর্ণ: ${received / (1024 * 1024)} MB / ${total / (1024 * 1024)} MB")
                         }
                     }
                 }
                 connection.disconnect()
-                onStatus("মডেল Extract ও যাচাই হচ্ছে…")
+                connection = null
+                onStatus("ডাউনলোড সম্পন্ন। মডেল Extract ও যাচাই হচ্ছে…")
                 extractModelArchive(archive)
                 if (!requiredFilesExist()) {
                     throw IllegalStateException("Model files are incomplete after extraction")
@@ -94,8 +115,10 @@ class OfflineBengaliSpeechEngine(
                 onStatus("বাংলা Offline Model ইনস্টল সম্পন্ন • Ready")
             } catch (e: Exception) {
                 archive.delete()
-                onError("মডেল ইনস্টল হয়নি: ${e.message ?: "Unknown error"}")
+                onDownloadProgress(0)
+                onError("বাংলা মডেল ইনস্টল হয়নি: ${e.message ?: "Unknown error"}")
             } finally {
+                connection?.disconnect()
                 downloadInProgress = false
             }
         }
