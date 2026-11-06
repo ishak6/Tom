@@ -292,6 +292,15 @@ class MainActivity : ComponentActivity(), TextToSpeech.OnInitListener {
         val parsed = TomCommandHarness.parse(command)
         val isBangla = selectedLanguage.startsWith("bn")
 
+        if (parsed?.intent == TomCommandHarness.Intent.STOP) {
+            stopVoiceInput()
+            stopBackgroundVoiceService()
+            responseText = if (isBangla) "শোনা বন্ধ করেছি।" else "Listening stopped."
+            status = "Listening stopped"
+            speak(responseText)
+            return
+        }
+
         if (TomAccessibilityService.matchesCommand(command)) {
             val phoneControlEnabled = TomAccessibilityService.isEnabled(this)
             val phoneControlAnswer = if (!phoneControlEnabled) {
