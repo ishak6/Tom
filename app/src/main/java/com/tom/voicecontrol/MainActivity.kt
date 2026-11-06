@@ -73,9 +73,14 @@ class MainActivity : ComponentActivity(), TextToSpeech.OnInitListener {
     private var responseText by mutableStateOf("মাইক্রোফোন চাপ দিয়ে কথা বলুন।")
     private var isListening by mutableStateOf(false)
     private var offlineModeLabel by mutableStateOf("Offline speech availability checking…")
+    private var assistantRoleHeld by mutableStateOf(false)
+    private lateinit var voiceStateManager: TomVoiceStateManager
+    private var voiceAwake by mutableStateOf(true)
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        voiceStateManager = TomVoiceStateManager(this)
+        voiceAwake = voiceStateManager.isAwake()
         textToSpeech = TextToSpeech(this, this)
         offlineBengaliEngine = OfflineBengaliSpeechEngine(
             context = applicationContext,
@@ -100,6 +105,7 @@ class MainActivity : ComponentActivity(), TextToSpeech.OnInitListener {
             }
         )
         updateSpeechAvailability()
+        assistantRoleHeld = TomAssistantRole.isDefaultAssistant(this)
 
         setContent {
             val hasMicPermission = ContextCompat.checkSelfPermission(
@@ -127,6 +133,9 @@ class MainActivity : ComponentActivity(), TextToSpeech.OnInitListener {
                     isListening = isListening,
                     language = selectedLanguage,
                     offlineLabel = offlineModeLabel,
+                    assistantRoleHeld = assistantRoleHeld,
+                    voiceAwake = voiceAwake,
+                    onToggleVoiceState = { setVoiceAwake(!voiceAwake) }, 
                     modelInstalled = offlineBengaliEngine?.isModelInstalled() == true,
                     onDownloadModel = { offlineBengaliEngine?.downloadModel() },
                     onListen = {
@@ -138,10 +147,18 @@ class MainActivity : ComponentActivity(), TextToSpeech.OnInitListener {
                     onSettings = { startActivity(Intent(Settings.ACTION_SETTINGS)) },
                     onAccessibilitySettings = {
                         startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))
+                    },
+                    onDefaultAssistant = {
+                        TomAssistantRole.requestDefaultAssistantRole(this)
                     }
                 )
             }
         }
+    }
+
+    override fun onResume() {
+        super.onResume()
+        assistantRoleHeld = TomAssistantRole.isDefaultAssistant(this)
     }
 
     override fun onInit(result: Int) {
@@ -261,6 +278,27 @@ class MainActivity : ComponentActivity(), TextToSpeech.OnInitListener {
         val command = raw.lowercase(Locale.ROOT)
         val isBangla = selectedLanguage.startsWith("bn")
 
+        if (listOf("sleep tom", "go to sleep", "ঘুমাও টম", "স্লিপ টম").any(command::contains)) {
+            setVoiceAwake(false)
+            val answer = if (isBangla) "ঠিক আছে, Tom Sleep Mode-এ গেল। আবার চালু করতে অ্যাপের Wake control চাপুন।" else "Tom is now asleep. Use the Wake control in the app to resume."
+            responseText = answer
+            status = "Sleep mode • listening stopped"
+            speak(answer)
+            return
+        }
+        if (listOf("wake up tom", "জেগে ওঠো টম", "জাগো টম").any(command::contains)) {
+            setVoiceAwake(true)
+            val answer = if (isBangla) "Tom আবার প্রস্তুত।" else "Tom is awake and ready."
+            responseText = answer
+            status = "Awake • ready"
+            speak(answer)
+            return
+        }
+        if (!voiceAwake) {
+            status = "Sleep mode • use the Wake control to resume"
+            return
+        }
+
         if (TomAccessibilityService.matchesCommand(command)) {
             val phoneControlEnabled = TomAccessibilityService.isEnabled(this)
             val phoneControlAnswer = if (!phoneControlEnabled) {
@@ -304,6 +342,13 @@ class MainActivity : ComponentActivity(), TextToSpeech.OnInitListener {
         responseText = answer
         status = "কমান্ড সম্পন্ন • Local command processed"
         speak(answer)
+    }
+
+    private fun setVoiceAwake(awake: Boolean) {
+        voiceAwake = awake
+        voiceStateManager.setAwake(awake)
+        if (!awake) stopVoiceInput()
+        else status = "Tom awake • ready for tap-to-speak"
     }
 
     private fun speak(text: String) {
@@ -361,13 +406,17 @@ private fun TomHome(
     isListening: Boolean,
     language: String,
     offlineLabel: String,
+    assistantRoleHeld: Boolean,
+    voiceAwake: Boolean,
+    onToggleVoiceState: () -> Unit,
     modelInstalled: Boolean,
     onDownloadModel: () -> Unit,
     onListen: () -> Unit,
     onStop: () -> Unit,
     onLanguage: (String) -> Unit,
     onSettings: () -> Unit,
-    onAccessibilitySettings: () -> Unit
+    onAccessibilitySettings: () -> Unit,
+    onDefaultAssistant: () -> Unit
 ) {
     Surface(modifier = Modifier.fillMaxSize(), color = TomBackground) {
         Column(
@@ -428,6 +477,10 @@ private fun TomHome(
                     fontWeight = FontWeight.SemiBold
                 )
             }
+            Spacer(Modifier.height(10.dp))
+            OutlinedButton(onClick = onToggleVoiceState, modifier = Modifier.fillMaxWidth()) {
+                Text(if (voiceAwake) "Sleep Tom • listening disabled" else "Wake Tom • tap to resume")
+            }
             Spacer(Modifier.height(18.dp))
             InfoCard("YOU SAID", recognizedText)
             Spacer(Modifier.height(10.dp))
@@ -452,6 +505,14 @@ private fun TomHome(
                         modifier = Modifier.fillMaxWidth()
                     ) {
                         Text("Enable Tom Phone Control")
+                    }
+                    Spacer(Modifier.height(8.dp))
+                    OutlinedButton(
+                        onClick = onDefaultAssistant,
+                        enabled = !assistantRoleHeld,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text(if (assistantRoleHeld) "Tom is your Default Assistant" else "Set Tom as Default Assistant")
                     }
                 }
             }
