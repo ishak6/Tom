@@ -76,6 +76,8 @@ class MainActivity : ComponentActivity(), TextToSpeech.OnInitListener {
     private var responseText by mutableStateOf("মাইক্রোফোন চাপ দিয়ে কথা বলুন।")
     private var isListening by mutableStateOf(false)
     private var offlineModeLabel by mutableStateOf("Offline speech availability checking…")
+    private var modelDownloadProgress by mutableStateOf(0)
+    private var modelDownloadActive by mutableStateOf(false)
     private var recentCommands by mutableStateOf(listOf<String>())
     private var accessibilityEnabled by mutableStateOf(false)
     private var microphoneGranted by mutableStateOf(false)
@@ -104,12 +106,16 @@ class MainActivity : ComponentActivity(), TextToSpeech.OnInitListener {
             onStatus = { message ->
                 runOnUiThread {
                     status = message
+                    modelDownloadActive = message.contains("ডাউনলোড") || message.contains("Extract") || message.contains("সংযোগ হচ্ছে")
                     isListening = message.contains("শুনছি") ||
                         message.contains("চালু হচ্ছে") ||
                         message.contains("কথা শনাক্ত করছি") ||
                         message.contains("মাইক্রোফোন চালু হচ্ছে")
                     updateSpeechAvailability()
                 }
+            },
+            onDownloadProgress = { progress ->
+                runOnUiThread { modelDownloadProgress = progress }
             },
             onText = { text ->
                 runOnUiThread {
@@ -124,6 +130,7 @@ class MainActivity : ComponentActivity(), TextToSpeech.OnInitListener {
             onError = { message ->
                 runOnUiThread {
                     isListening = false
+                    modelDownloadActive = false
                     status = message
                 }
             }
@@ -170,7 +177,13 @@ class MainActivity : ComponentActivity(), TextToSpeech.OnInitListener {
                     onBatterySettings = {
                         startActivity(Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS))
                     },
-                    onDownloadModel = { offlineBengaliEngine?.downloadModel() },
+                    modelDownloadProgress = modelDownloadProgress,
+                    modelDownloadActive = modelDownloadActive,
+                    onDownloadModel = {
+                        modelDownloadActive = true
+                        modelDownloadProgress = 0
+                        offlineBengaliEngine?.downloadModel()
+                    },
                     onListen = {
                         if (hasMicPermission) startVoiceInput()
                         else permissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
@@ -535,6 +548,8 @@ private fun TomHome(
     language: String,
     offlineLabel: String,
     modelInstalled: Boolean,
+    modelDownloadProgress: Int,
+    modelDownloadActive: Boolean,
     recentCommands: List<String>,
     accessibilityEnabled: Boolean,
     microphoneGranted: Boolean,
@@ -681,17 +696,32 @@ private fun TomHome(
                     Text("VOICE ENGINE", color = TomAccent, fontSize = 11.sp, fontWeight = FontWeight.Bold)
                     Spacer(Modifier.height(5.dp))
                     Text(offlineLabel, color = Color.LightGray, fontSize = 12.sp)
-                    Text("বাংলা model একবার download করলে speech recognition ফোনেই চলে; পরে internet লাগে না। English এখনও Android speech service ব্যবহার করে।", color = Color.Gray, fontSize = 11.sp)
+                    Text("বাংলা model একবার download করলে speech recognition ফোনেই চলে; পরে internet লাগে না। English-এর জন্য Android-এর supported offline speech pack প্রয়োজন।", color = Color.Gray, fontSize = 11.sp)
+                    if (modelDownloadActive) {
+                        Spacer(Modifier.height(10.dp))
+                        androidx.compose.material3.LinearProgressIndicator(
+                            progress = { modelDownloadProgress / 100f },
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                        Text("ডাউনলোড: $modelDownloadProgress%", color = TomAccent, fontSize = 12.sp)
+                    }
                 }
             }
             if (language.startsWith("bn")) {
                 Spacer(Modifier.height(8.dp))
                 OutlinedButton(
                     onClick = onDownloadModel,
-                    enabled = !modelInstalled,
+                    enabled = !modelInstalled && !modelDownloadActive,
                     modifier = Modifier.fillMaxWidth()
                 ) {
-                    Text(if (modelInstalled) "বাংলা Offline Model Ready" else "Download Bengali Offline Model • ~88 MB")
+                    Text(
+                        when {
+                            modelInstalled -> "বাংলা Offline Model Ready"
+                            modelDownloadActive -> "ডাউনলোড চলছে…"
+                            modelDownloadProgress > 0 -> "আবার ডাউনলোড করুন • Retry"
+                            else -> "বাংলা Offline Model ডাউনলোড • ~88 MB"
+                        }
+                    )
                 }
             }
             Spacer(Modifier.height(12.dp))
