@@ -59,8 +59,13 @@ class OfflineBengaliSpeechEngine(
             onStatus("বাংলা Offline Model প্রস্তুত • Ready")
             return
         }
+        if (!TomResourceManager.hasEnoughSpaceForModel(context)) {
+            onError("মডেল ইনস্টল করার জন্য অন্তত 350 MB খালি Storage প্রয়োজন")
+            return
+        }
         downloadInProgress = true
         thread(name = "Tom-BN-Model-Download") {
+            TomResourceManager.removeIncompleteModelArchive(context)
             val archive = File(context.cacheDir, "tom-bn-asr.tar.bz2")
             try {
                 onStatus("বাংলা Offline Model ডাউনলোড হচ্ছে… প্রায় 88 MB")
@@ -179,6 +184,7 @@ class OfflineBengaliSpeechEngine(
         worker = thread(name = "Tom-BN-ASR") {
             try {
                 val dir = modelDirectory()
+                val resourceSnapshot = TomResourceManager.snapshot(context)
                 val config = OnlineRecognizerConfig(
                     featConfig = FeatureConfig(sampleRate = SAMPLE_RATE, featureDim = 80),
                     modelConfig = OnlineModelConfig(
@@ -188,7 +194,7 @@ class OfflineBengaliSpeechEngine(
                             joiner = File(dir, "joiner.onnx").absolutePath
                         ),
                         tokens = File(dir, "tokens.txt").absolutePath,
-                        numThreads = 2,
+                        numThreads = resourceSnapshot.recommendedAsrThreads,
                         modelType = "zipformer2",
                         modelingUnit = "cjkchar"
                     ),
@@ -200,6 +206,9 @@ class OfflineBengaliSpeechEngine(
                     enableEndpoint = true
                 )
                 recognizer = OnlineRecognizer(config = config)
+                if (resourceSnapshot.lowMemoryMode) {
+                    onStatus("Low-RAM mode • ASR optimized for memory")
+                }
                 if (ContextCompat.checkSelfPermission(
                         context,
                         Manifest.permission.RECORD_AUDIO
