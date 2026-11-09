@@ -341,16 +341,7 @@ class MainActivity : ComponentActivity(), TextToSpeech.OnInitListener {
         // Select response language from the recognized utterance, not only the UI preference.
         val containsBanglaScript = raw.any { it in '\u0980'..'\u09FF' }
         val isBangla = containsBanglaScript || selectedLanguage.startsWith("bn")
-        val command = raw.lowercase(Locale.ROOT)
-            .replace('০', '0').replace('১', '1').replace('২', '2').replace('৩', '3')
-            .replace('৪', '4').replace('৫', '5').replace('৬', '6').replace('৭', '7')
-            .replace('৮', '8').replace('৯', '9')
-            .replace(Regex("[\\p{Punct}\\p{S}]"), " ")
-            .replace(Regex("\\s+"), " ")
-            .trim()
-            .removePrefix("tom ")
-            .removePrefix("টম ")
-            .trim()
+        val command = VoiceCommandNormalizer.normalize(raw)
 
         // Handle the general Android Settings intent before generic app-launch routing.
         // "open settings" and "সেটিংস খোলো" also match the app-launch patterns.
